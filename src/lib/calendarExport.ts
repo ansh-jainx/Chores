@@ -32,7 +32,28 @@ export interface MonthlyPersonExport {
   people: PersonMonthSchedule[]
 }
 
-/** Shown on monthly PDF titles. */
+export interface DateGridCell {
+  text: string
+  kind: 'chore' | 'holiday'
+  note?: string
+}
+
+export interface MonthlyDateGridRow {
+  date: string
+  dateLabel: string
+  /** personId → cell content when they have something that day */
+  cells: Record<string, DateGridCell>
+}
+
+export interface MonthlyDateGrid {
+  year: number
+  month: number
+  label: string
+  people: Array<{ id: string; name: string }>
+  rows: MonthlyDateGridRow[]
+}
+
+/** Shown on monthly and weekly PDF titles. */
 export const WEEKEND_CHORE_NOTE =
   'Weekend chores can be done Fri/Sat/Sun · listed on Saturday · Cardboard Tue night / Wed morning'
 
@@ -279,6 +300,66 @@ export function buildMonthlyPersonSchedules(
       people,
     }
   })
+}
+
+/** Dates as rows, people as columns — easiest fridge-style monthly view. */
+export function buildMonthlyDateGrids(
+  household: Household,
+  away: AwayMap,
+  from: string,
+  until: string,
+): MonthlyDateGrid[] {
+  return buildMonthlyPersonSchedules(household, away, from, until).map(
+    (month) => {
+      const rowMap = new Map<string, MonthlyDateGridRow>()
+
+      for (const person of month.people) {
+        for (const item of person.items) {
+          let row = rowMap.get(item.date)
+          if (!row) {
+            row = {
+              date: item.date,
+              dateLabel: item.dateLabel,
+              cells: {},
+            }
+            rowMap.set(item.date, row)
+          }
+
+          const existing = row.cells[person.personId]
+          if (existing) {
+            row.cells[person.personId] = {
+              text: `${existing.text}; ${item.choreName}`,
+              kind: existing.kind === 'holiday' || item.kind === 'holiday'
+                ? 'holiday'
+                : 'chore',
+              note: existing.note ?? item.note,
+            }
+          } else {
+            row.cells[person.personId] = {
+              text: item.choreName,
+              kind: item.kind,
+              note: item.note,
+            }
+          }
+        }
+      }
+
+      const rows = [...rowMap.values()].sort((left, right) =>
+        left.date < right.date ? -1 : left.date > right.date ? 1 : 0,
+      )
+
+      return {
+        year: month.year,
+        month: month.month,
+        label: month.label,
+        people: month.people.map((person) => ({
+          id: person.personId,
+          name: person.personName,
+        })),
+        rows,
+      }
+    },
+  )
 }
 
 export function buildWeeklyExport(

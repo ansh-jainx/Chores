@@ -424,10 +424,10 @@ function SetupPanel({
           <h3 id="export-heading">Download PDF</h3>
         </div>
         <p className="field-help">
-          Monthly PDF is person-first: find your name, then the dates you have
-          chores. Weekend chores are listed once on Saturday (do them
-          Fri/Sat/Sun). Cardboard is Wednesday (Tue night / Wed morning). Weekly
-          rota is people × weeks for the same date range.
+          Monthly PDF is a grid: chore dates as rows, people as columns. Weekend
+          chores are listed on Saturday (do them Fri/Sat/Sun); cardboard on
+          Wednesday (Tue night / Wed morning). Weekly rota uses the same date
+          range and includes that timing note in the title.
         </p>
         <div className="export-form">
           <label className="field">
@@ -438,7 +438,7 @@ function SetupPanel({
                 setExportFormat(event.target.value as ExportFormat)
               }
             >
-              <option value="monthly">Monthly by person</option>
+              <option value="monthly">Monthly date grid</option>
               <option value="weekly">Weekly rota</option>
             </select>
           </label>

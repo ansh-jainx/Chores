@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AwayMap, Household } from '../types'
 import {
+  buildMonthlyDateGrids,
   buildMonthlyPersonSchedules,
   buildWeeklyExport,
   placeWeekAssignmentsOnDays,
@@ -99,5 +100,16 @@ describe('calendar export placement', () => {
     )
     const alex = months[0]?.people.find((person) => person.personId === 'alex')
     expect(alex?.items.some((item) => item.kind === 'holiday')).toBe(true)
+  })
+
+  it('builds a date-row × person-column monthly grid', () => {
+    const grids = buildMonthlyDateGrids(household, {}, '2026-07-01', '2026-07-31')
+    expect(grids).toHaveLength(1)
+    expect(grids[0]?.people.map((person) => person.name)).toEqual([
+      'Alex',
+      'Sam',
+    ])
+    expect(grids[0]?.rows.length).toBeGreaterThan(0)
+    expect(grids[0]?.rows.every((row) => Boolean(row.dateLabel))).toBe(true)
   })
 })
