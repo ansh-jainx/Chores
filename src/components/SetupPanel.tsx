@@ -101,8 +101,14 @@ function SetupPanel({
       window.setTimeout(() => setExportStatus('idle'), 1800)
     } catch (error) {
       setExportStatus('error')
+      const message =
+        error instanceof Error ? error.message : 'Could not create the PDF.'
       setExportError(
-        error instanceof Error ? error.message : 'Could not create the PDF.',
+        /dynamically imported module|Loading chunk|Failed to fetch/i.test(
+          message,
+        )
+          ? 'The app was updated in the background. Reload this page, then tap Download PDF again.'
+          : message,
       )
     }
   }

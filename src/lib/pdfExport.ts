@@ -1,4 +1,4 @@
-import type { jsPDF } from 'jspdf'
+import { jsPDF } from 'jspdf'
 import type { AwayMap, Household } from '../types'
 import {
   buildMonthlyPersonSchedules,
@@ -220,7 +220,6 @@ export async function downloadChoresPdf(options: {
     throw new Error('End date must be on or after the start date.')
   }
 
-  const { jsPDF } = await import('jspdf')
   const landscape = format === 'weekly'
   const doc = new jsPDF({
     orientation: landscape ? 'landscape' : 'portrait',

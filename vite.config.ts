@@ -9,12 +9,18 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'auto',
       includeAssets: [
         'favicon.svg',
         'household.json',
         'icons/icon-192.png',
         'icons/icon-512.png',
       ],
+      workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+      },
       manifest: {
         name: 'Flat Chores',
         short_name: 'Chores',
