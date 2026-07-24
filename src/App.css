@@ -62,6 +62,52 @@
   transform: scale(0.97);
 }
 
+.header-meta {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.sync-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.36);
+  border: 1px solid rgba(204, 251, 241, 0.18);
+  color: #99f6e4;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.sync-chip--synced {
+  border-color: rgba(45, 212, 191, 0.45);
+  color: #ccfbf1;
+}
+
+.sync-chip--saving,
+.sync-chip--connecting {
+  border-color: rgba(251, 191, 36, 0.4);
+  color: #fde68a;
+}
+
+.sync-chip--error,
+.sync-chip--local-only {
+  border-color: rgba(252, 165, 165, 0.35);
+  color: #fecaca;
+}
+
+.sync-banner {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(69, 26, 3, 0.55);
+  color: #fde68a;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
 .tab-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

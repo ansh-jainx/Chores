@@ -15,11 +15,27 @@ const tabs: Array<{ id: ActiveTab; label: string; hint: string }> = [
   { id: 'setup', label: 'Setup', hint: 'Edit flat details' },
 ]
 
+function syncStatusLabel(status: string) {
+  switch (status) {
+    case 'synced':
+      return 'Synced across devices'
+    case 'saving':
+      return 'Saving…'
+    case 'connecting':
+      return 'Connecting…'
+    case 'error':
+      return 'Sync error'
+    default:
+      return 'This device only'
+  }
+}
+
 function App() {
   const {
     household,
     away,
     ready,
+    syncStatus,
     setHousehold,
     setAway,
     addAbsence,
@@ -127,10 +143,26 @@ function App() {
             Pick your name, see your chores for the week.
           </p>
         </div>
-        <div className="header-chip" aria-label="Selected week">
-          {weekKey || 'Preparing week'}
+        <div className="header-meta">
+          <div
+            className={`sync-chip sync-chip--${syncStatus}`}
+            aria-live="polite"
+          >
+            {syncStatusLabel(syncStatus)}
+          </div>
+          <div className="header-chip" aria-label="Selected week">
+            {weekKey || 'Preparing week'}
+          </div>
         </div>
       </header>
+
+      {syncStatus === 'local-only' ? (
+        <aside className="sync-banner" role="status">
+          Cloud sync is not connected yet, so edits stay on this device. Once
+          sync is enabled, names and holidays update on every phone
+          automatically.
+        </aside>
+      ) : null}
 
       <nav
         className="tab-list"

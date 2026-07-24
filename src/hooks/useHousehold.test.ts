@@ -15,6 +15,13 @@ vi.mock('../lib/defaults', async (importOriginal) => {
   }
 })
 
+vi.mock('../lib/cloudSync', () => ({
+  loadFirebaseConfig: vi.fn(async () => null),
+  initCloudSync: vi.fn(() => false),
+  subscribeCloudState: vi.fn(() => () => undefined),
+  pushCloudState: vi.fn(async () => Date.now()),
+}))
+
 const defaultHousehold: Household = {
   people: [
     {
@@ -52,7 +59,14 @@ const storedState: PersistedState = {
     biweeklyParity: 1,
   },
   away: {
-    sam: [{ id: '2026-W30', name: 'Holiday', from: '2026-07-20', until: '2026-07-27' }],
+    sam: [
+      {
+        id: '2026-W30',
+        name: 'Holiday',
+        from: '2026-07-20',
+        until: '2026-07-27',
+      },
+    ],
   },
 }
 
@@ -88,6 +102,7 @@ describe('useHousehold', () => {
     expect(readStoredState()).toEqual(storedState)
     expect(window.location.hash).toBe('')
     expect(mockedFetchDefaultHousehold).not.toHaveBeenCalled()
+    expect(result.current.syncStatus).toBe('local-only')
   })
 
   it('does not persist the empty initial household while defaults load', async () => {
@@ -129,11 +144,23 @@ describe('useHousehold', () => {
 
     expect(result.current.household).toEqual(defaultHousehold)
     expect(result.current.away).toEqual({})
-    expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(localStorage.getItem(STORAGE_KEY)).toEqual(
+      JSON.stringify({
+        household: defaultHousehold,
+        away: {},
+      }),
+    )
 
     act(() => {
       result.current.setAway({
-        alex: [{ id: 'alex-trip', name: 'Holiday', from: '2026-07-27', until: '2026-08-03' }],
+        alex: [
+          {
+            id: 'alex-trip',
+            name: 'Holiday',
+            from: '2026-07-27',
+            until: '2026-08-03',
+          },
+        ],
       })
     })
 
@@ -141,7 +168,14 @@ describe('useHousehold', () => {
       expect(readStoredState()).toEqual({
         household: defaultHousehold,
         away: {
-          alex: [{ id: 'alex-trip', name: 'Holiday', from: '2026-07-27', until: '2026-08-03' }],
+          alex: [
+            {
+              id: 'alex-trip',
+              name: 'Holiday',
+              from: '2026-07-27',
+              until: '2026-08-03',
+            },
+          ],
         },
       }),
     )

@@ -12,21 +12,40 @@ Default household data lives in `public/household.json`. Edit that file to chang
 - `chores`: each chore's `id`, `name`, `cadence` (`"weekly"` or `"biweekly"`), optional `zone`, and optional `effort` (`"heavy"`, `"medium"`, `"light"`).
 - `biweeklyParity`: whether biweekly chores run on even (`0`) or odd (`1`) ISO week numbers.
 
-The Setup tab can also edit people, chores, and biweekly parity in the browser. Those edits are saved in local storage with holiday ranges; they do not write back to `public/household.json`. Existing browsers with saved data keep using their saved setup until they reset to defaults, clear site data, or open a share link.
+The Setup tab can also edit people, chores, and biweekly parity in the browser. With cloud sync enabled, those edits (and holidays) sync to every device automatically. Without cloud sync, edits stay in that browser's local storage only.
 
-Keep `id` values stable where possible so saved holidays and share links continue to match the same people and chores.
+Keep `id` values stable where possible so saved holidays continue to match the same people and chores.
 
-## Share links and holidays
+## Cloud sync (names + holidays across phones)
 
-On the Holidays tab, pick who is away, give the trip a name, and choose **Away from** / **Back on** dates on the calendar. The app decides which Mon–Sun weeks skip chores (4+ days away in that week). The This week view shows who is on holiday and the holiday name.
+The live site needs a free Firebase Realtime Database so every flatmate sees the same names and holidays.
 
-Share links use the current page URL plus a `#s=<base64url-json>` hash, for example:
+1. Open [Firebase Console](https://console.firebase.google.com/) and create a project (Spark / free).
+2. Add a **Web** app; copy the `firebaseConfig` values.
+3. Create a **Realtime Database** (start in test mode for a private flat app, or use the rules below).
+4. Copy [`public/firebase-config.example.json`](public/firebase-config.example.json) to `public/firebase-config.json` and fill in the values. Keep `householdPath` as `households/flat-chores` unless you want a different shared bucket.
+5. Set Realtime Database rules to:
 
-```text
-https://ansh-jainx.github.io/Chores/#s=eyJob3VzZWhvbGQiOi...
+```json
+{
+  "rules": {
+    "households": {
+      "flat-chores": {
+        ".read": true,
+        ".write": true
+      }
+    }
+  }
+}
 ```
 
-The encoded JSON contains the current household and holiday state. Send a share link to another flatmate to copy that setup into their browser without needing a backend account.
+6. Commit `firebase-config.json` and push to `main` (GitHub Pages will redeploy).
+
+The header shows **Synced across devices** when cloud sync is working.
+
+## Holidays
+
+On the Holidays tab, pick who is away, give the trip a name, and choose **Away from** / **Back on** dates on the calendar. The app decides which Mon–Sun weeks skip chores (4+ days away in that week). The This week view shows who is on holiday and the holiday name.
 
 ## Local development
 
