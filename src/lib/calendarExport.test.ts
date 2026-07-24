@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AwayMap, Household } from '../types'
 import {
-  buildMonthlyCalendars,
+  buildMonthlyPersonSchedules,
   buildWeeklyExport,
   placeWeekAssignmentsOnDays,
 } from './calendarExport'
@@ -25,7 +25,7 @@ const household: Household = {
 }
 
 describe('calendar export placement', () => {
-  it('puts cardboard on Wednesday and other chores on both weekend days', () => {
+  it('puts cardboard on Wednesday and weekend chores once on Saturday', () => {
     const placed = placeWeekAssignmentsOnDays(
       '2026-W30',
       [
@@ -48,34 +48,38 @@ describe('calendar export placement', () => {
     )
 
     // 2026-W30 Monday is 2026-07-20
-    expect(placed['2026-07-22']?.some((entry) => entry.text === 'Cardboard')).toBe(
+    expect(placed['2026-07-22']?.some((entry) => entry.choreName === 'Cardboard')).toBe(
       true,
     )
     expect(placed['2026-07-22']?.[0]?.note).toMatch(/Tue night/i)
-    expect(placed['2026-07-25']?.some((entry) => entry.text === 'Kitchen')).toBe(
+    expect(placed['2026-07-25']?.some((entry) => entry.choreName === 'Kitchen')).toBe(
       true,
     )
-    expect(placed['2026-07-26']?.some((entry) => entry.text === 'Kitchen')).toBe(
-      true,
-    )
-    expect(placed['2026-07-25']?.some((entry) => entry.text === 'Cardboard')).toBe(
+    expect(placed['2026-07-26']).toBeUndefined()
+    expect(placed['2026-07-25']?.some((entry) => entry.choreName === 'Cardboard')).toBe(
       false,
     )
   })
 
-  it('builds monthly calendars and weekly rows for a date range', () => {
+  it('builds person-first monthly schedules for a date range', () => {
     const from = '2026-07-01'
     const until = '2026-07-31'
-    const months = buildMonthlyCalendars(household, {}, from, until)
+    const months = buildMonthlyPersonSchedules(household, {}, from, until)
     const weekly = buildWeeklyExport(household, {}, from, until)
 
-    expect(months.length).toBe(1)
+    expect(months).toHaveLength(1)
     expect(months[0]?.label).toBe('July 2026')
-    expect(months[0]?.weeks.length).toBeGreaterThan(3)
+    expect(months[0]?.people.map((person) => person.personName)).toEqual([
+      'Alex',
+      'Sam',
+    ])
+    expect(
+      months[0]?.people.some((person) => person.items.length > 0),
+    ).toBe(true)
     expect(weekly.length).toBe(weekKeysOverlappingRange(from, until).length)
   })
 
-  it('marks holiday weekends without listing chores for away people', () => {
+  it('lists holidays under the person rather than as a calendar grid', () => {
     const away: AwayMap = {
       alex: [
         {
@@ -87,8 +91,13 @@ describe('calendar export placement', () => {
       ],
     }
 
-    const months = buildMonthlyCalendars(household, away, '2026-07-20', '2026-07-26')
-    const saturday = months[0]?.entriesByDate['2026-07-25'] ?? []
-    expect(saturday.some((entry) => entry.kind === 'holiday')).toBe(true)
+    const months = buildMonthlyPersonSchedules(
+      household,
+      away,
+      '2026-07-20',
+      '2026-07-26',
+    )
+    const alex = months[0]?.people.find((person) => person.personId === 'alex')
+    expect(alex?.items.some((item) => item.kind === 'holiday')).toBe(true)
   })
 })

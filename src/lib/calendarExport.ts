@@ -11,21 +11,30 @@ import {
 
 export type ExportFormat = 'monthly' | 'weekly'
 
-export interface CalendarDayEntry {
-  personName: string
-  text: string
+export interface PersonChoreDate {
+  date: string
+  dateLabel: string
+  choreName: string
   kind: 'chore' | 'holiday'
   note?: string
 }
 
-export interface CalendarMonth {
+export interface PersonMonthSchedule {
+  personId: string
+  personName: string
+  items: PersonChoreDate[]
+}
+
+export interface MonthlyPersonExport {
   year: number
   month: number
   label: string
-  /** Monday-start weeks; each week has 7 date keys (may fall outside month). */
-  weeks: string[][]
-  entriesByDate: Record<string, CalendarDayEntry[]>
+  people: PersonMonthSchedule[]
 }
+
+/** Shown on monthly PDF titles. */
+export const WEEKEND_CHORE_NOTE =
+  'Weekend chores can be done Fri/Sat/Sun · listed on Saturday · Cardboard Tue night / Wed morning'
 
 const MONTH_NAMES = [
   'January',
@@ -42,9 +51,25 @@ const MONTH_NAMES = [
   'December',
 ]
 
+const SHORT_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
 const ISO_WEDNESDAY = 3
 const ISO_SATURDAY = 6
-const ISO_SUNDAY = 7
 
 function isCardboard(assignment: Assignment): boolean {
   return (
@@ -57,14 +82,13 @@ function dateForIsoWeekday(weekKey: string, isoWeekday: number): string {
   return addDaysToIsoDate(weekStartDate(weekKey), isoWeekday - 1)
 }
 
-function pushEntry(
-  map: Record<string, CalendarDayEntry[]>,
-  date: string,
-  entry: CalendarDayEntry,
-) {
-  const list = map[date] ?? []
-  list.push(entry)
-  map[date] = list
+export function formatChoreDateLabel(isoDate: string): string {
+  const ms = parseIsoDate(isoDate)
+  const date = new Date(ms)
+  const dayName = DAY_NAMES[date.getUTCDay()]
+  const day = date.getUTCDate()
+  const month = SHORT_MONTHS[date.getUTCMonth()]
+  return `${dayName} ${day} ${month}`
 }
 
 function monthsCoveringRange(
@@ -100,50 +124,43 @@ function monthsCoveringRange(
   return months
 }
 
-function buildMonthGrid(year: number, month: number): string[][] {
-  const first = `${year}-${String(month).padStart(2, '0')}-01`
-  const firstWeekday = ((new Date(parseIsoDate(first)).getUTCDay() + 6) % 7) + 1
-  // Monday=1 ... pad days before month start
-  let cursor = addDaysToIsoDate(first, -(firstWeekday - 1))
-  const weeks: string[][] = []
-
-  for (let w = 0; w < 6; w += 1) {
-    const week: string[] = []
-    for (let d = 0; d < 7; d += 1) {
-      week.push(cursor)
-      cursor = addDaysToIsoDate(cursor, 1)
-    }
-    weeks.push(week)
-    const last = week[6]
-    if (last) {
-      const lastDate = new Date(parseIsoDate(last))
-      if (
-        lastDate.getUTCFullYear() > year ||
-        (lastDate.getUTCFullYear() === year &&
-          lastDate.getUTCMonth() + 1 > month)
-      ) {
-        break
-      }
-    }
-  }
-
-  return weeks
+function monthPrefix(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, '0')}-`
 }
 
 /**
  * Place week's chores onto calendar days:
  * - cardboard → Wednesday (Tue night / Wed morning)
- * - everything else → Saturday and Sunday (weekend chore days)
+ * - everything else → Saturday once (do anytime Fri/Sat/Sun)
  */
 export function placeWeekAssignmentsOnDays(
   weekKey: string,
   assignments: Assignment[],
   away: AwayMap,
-): Record<string, CalendarDayEntry[]> {
-  const entries: Record<string, CalendarDayEntry[]> = {}
+): Record<string, Array<Omit<PersonChoreDate, 'date' | 'dateLabel'> & { personId: string; personName: string }>> {
+  const entries: Record<
+    string,
+    Array<
+      Omit<PersonChoreDate, 'date' | 'dateLabel'> & {
+        personId: string
+        personName: string
+      }
+    >
+  > = {}
   const wednesday = dateForIsoWeekday(weekKey, ISO_WEDNESDAY)
   const saturday = dateForIsoWeekday(weekKey, ISO_SATURDAY)
-  const sunday = dateForIsoWeekday(weekKey, ISO_SUNDAY)
+
+  const push = (
+    date: string,
+    entry: Omit<PersonChoreDate, 'date' | 'dateLabel'> & {
+      personId: string
+      personName: string
+    },
+  ) => {
+    const list = entries[date] ?? []
+    list.push(entry)
+    entries[date] = list
+  }
 
   for (const assignment of assignments) {
     if (isAway(away, assignment.personId, weekKey)) {
@@ -151,34 +168,35 @@ export function placeWeekAssignmentsOnDays(
     }
 
     if (isCardboard(assignment)) {
-      pushEntry(entries, wednesday, {
+      push(wednesday, {
+        personId: assignment.personId,
         personName: assignment.personName,
-        text: assignment.choreName,
+        choreName: assignment.choreName,
         kind: 'chore',
         note: 'Tue night / Wed morning',
       })
       continue
     }
 
-    const weekendEntry: CalendarDayEntry = {
+    push(saturday, {
+      personId: assignment.personId,
       personName: assignment.personName,
-      text: assignment.choreName,
+      choreName: assignment.choreName,
       kind: 'chore',
-    }
-    pushEntry(entries, saturday, weekendEntry)
-    pushEntry(entries, sunday, { ...weekendEntry })
+    })
   }
 
   return entries
 }
 
-export function buildMonthlyCalendars(
+export function buildMonthlyPersonSchedules(
   household: Household,
   away: AwayMap,
   from: string,
   until: string,
-): CalendarMonth[] {
-  const entriesByDate: Record<string, CalendarDayEntry[]> = {}
+): MonthlyPersonExport[] {
+  type RawItem = PersonChoreDate & { personId: string }
+  const allItems: RawItem[] = []
 
   for (const weekKey of weekKeysOverlappingRange(from, until)) {
     const schedule = scheduleWeek(household, away, weekKey)
@@ -193,7 +211,14 @@ export function buildMonthlyCalendars(
         continue
       }
       for (const entry of dayEntries) {
-        pushEntry(entriesByDate, date, entry)
+        allItems.push({
+          personId: entry.personId,
+          date,
+          dateLabel: formatChoreDateLabel(date),
+          choreName: entry.choreName,
+          kind: entry.kind,
+          note: entry.note,
+        })
       }
     }
 
@@ -210,21 +235,50 @@ export function buildMonthlyCalendars(
       const holidayNames = (away[person.id] ?? [])
         .map((absence) => absence.name.trim())
         .filter((name) => name.length > 0)
-      pushEntry(entriesByDate, saturday, {
-        personName: person.name,
-        text: holidayNames.length > 0 ? holidayNames.join(', ') : 'Holiday',
+
+      allItems.push({
+        personId: person.id,
+        date: saturday,
+        dateLabel: formatChoreDateLabel(saturday),
+        choreName:
+          holidayNames.length > 0 ? holidayNames.join(', ') : 'Holiday',
         kind: 'holiday',
       })
     }
   }
 
-  return monthsCoveringRange(from, until).map(({ year, month }) => ({
-    year,
-    month,
-    label: `${MONTH_NAMES[month - 1]} ${year}`,
-    weeks: buildMonthGrid(year, month),
-    entriesByDate,
-  }))
+  allItems.sort((left, right) => {
+    if (left.date !== right.date) {
+      return left.date < right.date ? -1 : 1
+    }
+    return left.choreName.localeCompare(right.choreName)
+  })
+
+  return monthsCoveringRange(from, until).map(({ year, month }) => {
+    const prefix = monthPrefix(year, month)
+    const people: PersonMonthSchedule[] = household.people.map((person) => ({
+      personId: person.id,
+      personName: person.name,
+      items: allItems
+        .filter(
+          (item) => item.personId === person.id && item.date.startsWith(prefix),
+        )
+        .map(({ date, dateLabel, choreName, kind, note }) => ({
+          date,
+          dateLabel,
+          choreName,
+          kind,
+          note,
+        })),
+    }))
+
+    return {
+      year,
+      month,
+      label: `${MONTH_NAMES[month - 1]} ${year}`,
+      people,
+    }
+  })
 }
 
 export function buildWeeklyExport(
