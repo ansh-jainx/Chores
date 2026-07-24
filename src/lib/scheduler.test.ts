@@ -59,14 +59,11 @@ describe('scheduleWeek', () => {
     };
 
     const schedule = scheduleWeek(household, {}, '2026-W01');
-    expect(countAssignmentsByPerson(schedule.assignments)).toEqual({
-      ada: 1,
-      ben: 1,
-      // cy may be empty — only 2 chores for 3 people
-    });
-    expect(
-      Math.max(...Object.values(countAssignmentsByPerson(schedule.assignments))),
-    ).toBe(1);
+    const counts = countAssignmentsByPerson(schedule.assignments);
+    // 2 chores / 3 people ⇒ exactly one free person, nobody doubled.
+    expect(Object.keys(counts)).toHaveLength(2);
+    expect(Math.max(...Object.values(counts))).toBe(1);
+    expect(counts.ben).toBe(1); // only down-zone person must cover down bath
   });
 
   it('uses cardboard before P/A/G before towels when a second chore is required', () => {
