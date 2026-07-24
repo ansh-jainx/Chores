@@ -11,7 +11,8 @@ export interface UseHouseholdResult {
   ready: boolean;
   setHousehold: Dispatch<SetStateAction<Household>>;
   setAway: Dispatch<SetStateAction<AwayMap>>;
-  toggleAway: (personId: string, weekKey: string) => void;
+  addAbsence: (personId: string, from: string, until: string) => void;
+  removeAbsence: (personId: string, absenceId: string) => void;
   resetToDefaults: () => Promise<void>;
   copyShareLink: () => Promise<string>;
 }
@@ -158,27 +159,48 @@ export function useHousehold(): UseHouseholdResult {
     });
   }, []);
 
-  const toggleAway = useCallback((personId: string, weekKey: string) => {
+  const addAbsence = useCallback((personId: string, from: string, until: string) => {
+    if (until <= from) {
+      return;
+    }
+
     setState((currentState) => {
       if (currentState === null) {
         return currentState;
       }
 
-      const weeks = new Set(currentState.away[personId] ?? []);
+      const absence = {
+        id: `${personId}-${from}-${until}-${Math.random().toString(36).slice(2, 7)}`,
+        from,
+        until,
+      };
+      const existing = currentState.away[personId] ?? [];
 
-      if (weeks.has(weekKey)) {
-        weeks.delete(weekKey);
-      } else {
-        weeks.add(weekKey);
+      return {
+        household: currentState.household,
+        away: {
+          ...currentState.away,
+          [personId]: [...existing, absence],
+        },
+      };
+    });
+  }, []);
+
+  const removeAbsence = useCallback((personId: string, absenceId: string) => {
+    setState((currentState) => {
+      if (currentState === null) {
+        return currentState;
       }
 
       const nextAway = { ...currentState.away };
-      const nextWeeks = Array.from(weeks).sort();
+      const remaining = (nextAway[personId] ?? []).filter(
+        (absence) => absence.id !== absenceId,
+      );
 
-      if (nextWeeks.length === 0) {
+      if (remaining.length === 0) {
         delete nextAway[personId];
       } else {
-        nextAway[personId] = nextWeeks;
+        nextAway[personId] = remaining;
       }
 
       return {
@@ -216,7 +238,8 @@ export function useHousehold(): UseHouseholdResult {
     ready,
     setHousehold,
     setAway,
-    toggleAway,
+    addAbsence,
+    removeAbsence,
     resetToDefaults,
     copyShareLink,
   };

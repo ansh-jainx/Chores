@@ -52,7 +52,7 @@ const storedState: PersistedState = {
     biweeklyParity: 1,
   },
   away: {
-    sam: ['2026-W30'],
+    sam: [{ id: '2026-W30', from: '2026-07-20', until: '2026-07-27' }],
   },
 }
 
@@ -132,13 +132,17 @@ describe('useHousehold', () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
 
     act(() => {
-      result.current.setAway({ alex: ['2026-W31'] })
+      result.current.setAway({
+        alex: [{ id: 'alex-trip', from: '2026-07-27', until: '2026-08-03' }],
+      })
     })
 
     await waitFor(() =>
       expect(readStoredState()).toEqual({
         household: defaultHousehold,
-        away: { alex: ['2026-W31'] },
+        away: {
+          alex: [{ id: 'alex-trip', from: '2026-07-27', until: '2026-08-03' }],
+        },
       }),
     )
   })

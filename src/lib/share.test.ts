@@ -32,7 +32,7 @@ const state: PersistedState = {
     biweeklyParity: 1,
   },
   away: {
-    sam: ['2026-W30'],
+    sam: [{ id: '2026-W30', from: '2026-07-20', until: '2026-07-27' }],
   },
 }
 

@@ -7,7 +7,7 @@ import type {
   Person,
   WeekSchedule,
 } from '../types'
-import { scheduleWeek } from '../lib/scheduler'
+import { scheduleWeek, isAway as personIsAway } from '../lib/scheduler'
 import { addWeeks, currentWeekKey, formatWeekLabel } from '../lib/weeks'
 
 export interface ThisWeekProps {
@@ -26,7 +26,7 @@ const EFFORT_LABEL: Record<Effort, string> = {
 }
 
 function isAway(away: AwayMap, personId: string, weekKey: string) {
-  return away[personId]?.includes(weekKey) ?? false
+  return personIsAway(away, personId, weekKey)
 }
 
 function assignmentsForPeople(

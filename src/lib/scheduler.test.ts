@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isAway, peoplePresent, scheduleWeek } from './scheduler';
+import { awayDaysInWeek, isAway, peoplePresent, scheduleWeek } from './scheduler';
 import type { Assignment, AwayMap, Household } from '../types';
 
 const basePeople: Household['people'] = [
@@ -10,17 +10,26 @@ const basePeople: Household['people'] = [
 ];
 
 describe('scheduler helpers', () => {
-  it('detects away people and returns present people in household order', () => {
-    const household = householdWithChores(['dishes']);
+  it('uses the 4-day threshold for crossover holidays', () => {
+    // 2026-W30 is Mon 20 Jul – Sun 26 Jul.
+    // Away Thu 23 Jul → back Thu 30 Jul ⇒ W30: 4 days, W31: 3 days.
     const away: AwayMap = {
-      ben: ['2026-W30'],
+      ben: [{ id: 'trip', from: '2026-07-23', until: '2026-07-30' }],
     };
+    const household = householdWithChores(['dishes']);
 
+    expect(awayDaysInWeek(away, 'ben', '2026-W30')).toBe(4);
+    expect(awayDaysInWeek(away, 'ben', '2026-W31')).toBe(3);
     expect(isAway(away, 'ben', '2026-W30')).toBe(true);
     expect(isAway(away, 'ben', '2026-W31')).toBe(false);
     expect(isAway(away, 'ada', '2026-W30')).toBe(false);
     expect(peoplePresent(household, away, '2026-W30').map(({ id }) => id)).toEqual([
       'ada',
+      'cy',
+    ]);
+    expect(peoplePresent(household, away, '2026-W31').map(({ id }) => id)).toEqual([
+      'ada',
+      'ben',
       'cy',
     ]);
   });
@@ -104,9 +113,10 @@ describe('scheduleWeek', () => {
       'vacuum',
       'surfaces',
     ]);
+    // 2026-W01 = Mon 29 Dec 2025 – Sun 4 Jan 2026
     const schedule = scheduleWeek(
       household,
-      { ben: ['2026-W01'] },
+      { ben: [{ id: 'ben-away', from: '2025-12-29', until: '2026-01-05' }] },
       '2026-W01',
     );
 
@@ -123,9 +133,9 @@ describe('scheduleWeek', () => {
   it('returns an empty schedule instead of throwing when everyone is away', () => {
     const household = householdWithChores(['dishes', 'bins']);
     const away: AwayMap = {
-      ada: ['2026-W01'],
-      ben: ['2026-W01'],
-      cy: ['2026-W01'],
+      ada: [{ id: 'a', from: '2025-12-29', until: '2026-01-05' }],
+      ben: [{ id: 'b', from: '2025-12-29', until: '2026-01-05' }],
+      cy: [{ id: 'c', from: '2025-12-29', until: '2026-01-05' }],
     };
 
     expect(scheduleWeek(household, away, '2026-W01')).toEqual({
@@ -170,9 +180,10 @@ describe('scheduleWeek', () => {
         { id: 'up-mirror', name: 'Up mirror', cadence: 'weekly', zone: 'up' },
       ],
     };
+    // 2026-W02 = Mon 5 Jan – Sun 11 Jan 2026
     const away: AwayMap = {
-      'up-a': ['2026-W02'],
-      'up-b': ['2026-W02'],
+      'up-a': [{ id: 'ua', from: '2026-01-05', until: '2026-01-12' }],
+      'up-b': [{ id: 'ub', from: '2026-01-05', until: '2026-01-12' }],
     };
 
     const assignments = scheduleWeek(household, away, '2026-W02').assignments;
@@ -227,7 +238,7 @@ describe('scheduleWeek', () => {
   it('is deterministic for the same week, people order, chores order, and away map', () => {
     const household = householdWithChores(['dishes', 'bins', 'vacuum']);
     const away: AwayMap = {
-      ada: ['2026-W30'],
+      ada: [{ id: 'ada-away', from: '2026-07-20', until: '2026-07-27' }],
     };
 
     expect(scheduleWeek(household, away, '2026-W30')).toEqual(

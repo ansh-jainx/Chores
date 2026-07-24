@@ -9,13 +9,22 @@ const state: PersistedState = {
     biweeklyParity: 0,
   },
   away: {
-    alex: ['2026-W30'],
+    alex: [{ id: '2026-W30', from: '2026-07-20', until: '2026-07-27' }],
   },
 }
 
 describe('parsePersistedState', () => {
   it('returns a clean persisted state for valid input', () => {
     expect(parsePersistedState(state)).toEqual(state)
+  })
+
+  it('migrates legacy week-key away lists into date ranges', () => {
+    expect(
+      parsePersistedState({
+        household: state.household,
+        away: { alex: ['2026-W30'] },
+      }),
+    ).toEqual(state)
   })
 
   it('rejects objects with unexpected prototypes', () => {

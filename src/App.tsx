@@ -22,7 +22,8 @@ function App() {
     ready,
     setHousehold,
     setAway,
-    toggleAway,
+    addAbsence,
+    removeAbsence,
     resetToDefaults,
     copyShareLink,
   } = useHousehold()
@@ -87,7 +88,8 @@ function App() {
           household={household}
           away={away}
           weekKey={weekKey}
-          onToggleAway={toggleAway}
+          onAddAbsence={addAbsence}
+          onRemoveAbsence={removeAbsence}
         />
       )
     }

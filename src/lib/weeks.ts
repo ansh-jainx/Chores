@@ -102,6 +102,65 @@ export function listUpcomingWeekKeys(
   );
 }
 
+/** Monday 00:00 UTC of the ISO week, as YYYY-MM-DD. */
+export function weekStartDate(weekKey: string): string {
+  const { year, week } = parseWeekKey(weekKey);
+  return formatUtcDate(startOfIsoWeekMs(year, week));
+}
+
+/** Exclusive end = next Monday YYYY-MM-DD. */
+export function weekEndExclusiveDate(weekKey: string): string {
+  const { year, week } = parseWeekKey(weekKey);
+  return formatUtcDate(startOfIsoWeekMs(year, week) + MS_PER_WEEK);
+}
+
+export function parseIsoDate(date: string): number {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) {
+    throw new RangeError(`Invalid ISO date: ${date}`);
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const ms = utcDateMs(year, month - 1, day);
+  const parts = utcDateParts(ms);
+
+  if (parts.year !== year || parts.month !== month - 1 || parts.day !== day) {
+    throw new RangeError(`Invalid ISO date: ${date}`);
+  }
+
+  return ms;
+}
+
+export function formatUtcDate(utcMs: number): string {
+  const { year, month, day } = utcDateParts(utcMs);
+  return `${String(year).padStart(4, '0')}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** Days overlapping [from, until) with the Mon–Sun ISO week. */
+export function overlapDaysInWeek(
+  from: string,
+  until: string,
+  weekKey: string,
+): number {
+  const rangeStart = parseIsoDate(from);
+  const rangeEnd = parseIsoDate(until);
+  if (rangeEnd <= rangeStart) {
+    return 0;
+  }
+
+  const weekStart = parseIsoDate(weekStartDate(weekKey));
+  const weekEnd = parseIsoDate(weekEndExclusiveDate(weekKey));
+  const start = Math.max(rangeStart, weekStart);
+  const end = Math.min(rangeEnd, weekEnd);
+  if (end <= start) {
+    return 0;
+  }
+
+  return Math.round((end - start) / MS_PER_DAY);
+}
+
 function weekKeyFromUtcMs(utcMs: number): string {
   const isoWeekday = getIsoWeekday(utcMs);
   const thursdayMs = utcMs + (4 - isoWeekday) * MS_PER_DAY;

@@ -1,4 +1,5 @@
 import type {
+  Absence,
   AwayMap,
   BathZone,
   Cadence,
@@ -8,6 +9,7 @@ import type {
   PersistedState,
   Person,
 } from '../types'
+import { weekEndExclusiveDate, weekStartDate } from './weeks'
 
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
 
@@ -168,6 +170,39 @@ function parseHousehold(value: unknown): Household | null {
   }
 }
 
+function isIsoDate(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+function isWeekKey(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-W\d{2}$/.test(value)
+}
+
+function parseAbsence(value: unknown): Absence | null {
+  if (!isPlainObject(value) || hasUnsafeOwnKey(value)) {
+    return null
+  }
+
+  if (
+    !hasOwn(value, 'id') ||
+    typeof value.id !== 'string' ||
+    UNSAFE_KEYS.has(value.id) ||
+    !hasOwn(value, 'from') ||
+    !isIsoDate(value.from) ||
+    !hasOwn(value, 'until') ||
+    !isIsoDate(value.until) ||
+    value.until <= value.from
+  ) {
+    return null
+  }
+
+  return {
+    id: value.id,
+    from: value.from,
+    until: value.until,
+  }
+}
+
 function parseAway(value: unknown): AwayMap | null {
   if (!isPlainObject(value) || hasUnsafeOwnKey(value)) {
     return null
@@ -175,32 +210,46 @@ function parseAway(value: unknown): AwayMap | null {
 
   const away: AwayMap = {}
 
-  for (const [personId, weeksValue] of Object.entries(value)) {
+  for (const [personId, entries] of Object.entries(value)) {
     if (UNSAFE_KEYS.has(personId)) {
       return null
     }
 
-    if (!isPlainArray(weeksValue) || hasUnsafeOwnKey(weeksValue)) {
+    if (!isPlainArray(entries) || hasUnsafeOwnKey(entries)) {
       return null
     }
 
-    const weeks: string[] = []
+    const absences: Absence[] = []
 
-    for (let index = 0; index < weeksValue.length; index += 1) {
-      if (!hasOwn(weeksValue, String(index))) {
+    for (let index = 0; index < entries.length; index += 1) {
+      if (!hasOwn(entries, String(index))) {
         return null
       }
 
-      const week = weeksValue[index]
+      const entry = entries[index]
 
-      if (typeof week !== 'string') {
-        return null
+      // Legacy: array of ISO week keys → full week ranges.
+      if (isWeekKey(entry)) {
+        try {
+          absences.push({
+            id: entry,
+            from: weekStartDate(entry),
+            until: weekEndExclusiveDate(entry),
+          })
+        } catch {
+          return null
+        }
+        continue
       }
 
-      weeks.push(week)
+      const absence = parseAbsence(entry)
+      if (absence === null) {
+        return null
+      }
+      absences.push(absence)
     }
 
-    away[personId] = weeks
+    away[personId] = absences
   }
 
   return away

@@ -1,6 +1,6 @@
 # Flat Chores
 
-Flat Chores is a small installable PWA for sharing weekly household chores fairly across a flat. It rotates weekly and biweekly jobs, respects bathroom zones, and lets people mark away weeks so chores are reassigned to the people who are home.
+Flat Chores is a small installable PWA for sharing weekly household chores fairly across a flat. It rotates weekly and biweekly jobs, respects bathroom zones and effort tiers, and lets people mark holiday date ranges so chores are reassigned when someone is away for 4+ days in a week.
 
 Live site: https://ansh-jainx.github.io/Chores/
 
@@ -9,16 +9,16 @@ Live site: https://ansh-jainx.github.io/Chores/
 Default household data lives in `public/household.json`. Edit that file to change the defaults loaded by new browsers and by the in-app "Reset to defaults" action:
 
 - `people`: each flatmate's `id`, display `name`, and `bathZone` (`"up"` or `"down"`).
-- `chores`: each chore's `id`, `name`, `cadence` (`"weekly"` or `"biweekly"`), and optional `zone`.
+- `chores`: each chore's `id`, `name`, `cadence` (`"weekly"` or `"biweekly"`), optional `zone`, and optional `effort` (`"heavy"`, `"medium"`, `"light"`).
 - `biweeklyParity`: whether biweekly chores run on even (`0`) or odd (`1`) ISO week numbers.
 
-The Setup tab can also edit people, chores, and biweekly parity in the browser. Those edits are saved in local storage with away weeks; they do not write back to `public/household.json`. Existing browsers with saved data keep using their saved setup until they reset to defaults, clear site data, or open a share link.
+The Setup tab can also edit people, chores, and biweekly parity in the browser. Those edits are saved in local storage with holiday ranges; they do not write back to `public/household.json`. Existing browsers with saved data keep using their saved setup until they reset to defaults, clear site data, or open a share link.
 
-Keep `id` values stable where possible so saved away weeks and share links continue to match the same people and chores.
+Keep `id` values stable where possible so saved holidays and share links continue to match the same people and chores.
 
-## Share links and away weeks
+## Share links and holidays
 
-Away weeks are stored in the browser with the household setup. The Away tab shows the selected week and the next seven ISO weeks as `YYYY-Www` chips. Mark a person away for an ISO week and the scheduler skips them for that week, redistributing their chores to present flatmates. If everyone is away, the app shows no assignments for that week. Zone chores stay within the matching bathroom zone unless everyone in that zone is away, in which case the app can spill the chore to another present person with a warning.
+Holidays are date ranges: **Away from** (first day away) to **Back on** (first day home again). A Mon–Sun week skips chores for that person only if they are away **4 or more days** in that week. Example: away Thu → back next Thu means 4 days in week 1 (no chores) and 3 days in week 2 (still chores).
 
 Share links use the current page URL plus a `#s=<base64url-json>` hash, for example:
 
@@ -26,7 +26,7 @@ Share links use the current page URL plus a `#s=<base64url-json>` hash, for exam
 https://ansh-jainx.github.io/Chores/#s=eyJob3VzZWhvbGQiOi...
 ```
 
-The encoded JSON contains the current household and away-week state. Send a share link to another flatmate to copy that setup into their browser without needing a backend account.
+The encoded JSON contains the current household and holiday state. Send a share link to another flatmate to copy that setup into their browser without needing a backend account.
 
 ## Local development
 

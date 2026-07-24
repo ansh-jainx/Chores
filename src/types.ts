@@ -26,8 +26,23 @@ export interface Household {
   biweeklyParity: 0 | 1;
 }
 
-/** personId -> list of ISO week keys like "2026-W30" */
-export type AwayMap = Record<string, string[]>;
+/**
+ * Half-open holiday range: away on `from` through the day before `until`.
+ * Example: Thu → next Thu means away Thu–Wed (4 days in week 1, 3 in week 2).
+ */
+export interface Absence {
+  id: string;
+  /** Inclusive first day away, YYYY-MM-DD */
+  from: string;
+  /** Exclusive first day back home, YYYY-MM-DD */
+  until: string;
+}
+
+/** personId -> holiday ranges */
+export type AwayMap = Record<string, Absence[]>;
+
+/** A person skips chores in a Mon–Sun week when away ≥ this many days. */
+export const AWAY_DAY_THRESHOLD = 4;
 
 export interface Assignment {
   choreId: string;
