@@ -80,6 +80,7 @@ export function ThisWeek({
   const nextWeekKey = addWeeks(weekKey, 1)
   const todayWeekKey = currentWeekKey()
   const nextWeek = getWeekSchedule(household, away, nextWeekKey)
+  const isEveryoneAwayThisWeek = everyoneIsAway(household.people, away, weekKey)
 
   const thisWeekByPerson = assignmentsForPeople(
     household.people,
@@ -113,7 +114,7 @@ export function ThisWeek({
         >
           Previous
         </button>
-        <div>
+        <div className="week-nav__current">
           <p>This week</p>
           <h2 id="this-week-heading">{formatWeekLabel(weekKey)}</h2>
         </div>
@@ -136,9 +137,14 @@ export function ThisWeek({
       </header>
 
       {household.people.length === 0 ? (
-        <p>No people have been added yet.</p>
+        <p className="empty-state">No people have been added yet.</p>
       ) : (
-        <div aria-label="Assignments grouped by person">
+        <div className="assignment-groups" aria-label="Assignments grouped by person">
+          {isEveryoneAwayThisWeek ? (
+            <p className="empty-state" role="status">
+              Everyone is away this week, so no chores are assigned.
+            </p>
+          ) : null}
           {household.people.map((person) => {
             const personIsAway = isAway(away, person.id, weekKey)
             const assignments = thisWeekByPerson.get(person.id) ?? []
@@ -193,9 +199,9 @@ export function ThisWeek({
             </span>
           </summary>
           {household.people.length === 0 ? (
-            <p>No people have been added yet.</p>
+            <p className="empty-state">No people have been added yet.</p>
           ) : (
-            <ul aria-label="Next week assignment preview">
+            <ul className="next-week-list" aria-label="Next week assignment preview">
               {household.people.map((person) => {
                 const personIsAway = isAway(away, person.id, nextWeekKey)
                 const assignments = nextWeekByPerson.get(person.id) ?? []
@@ -204,7 +210,9 @@ export function ThisWeek({
                   <li key={person.id}>
                     <strong>{person.name}</strong>{' '}
                     {personIsAway ? (
-                      <span className="away-badge">Away</span>
+                      <span className="away-badge" aria-label={`${person.name} is away next week`}>
+                        Away
+                      </span>
                     ) : assignments.length === 0 ? (
                       <span>No chores</span>
                     ) : (

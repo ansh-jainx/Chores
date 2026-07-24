@@ -1,15 +1,19 @@
 import { useState } from 'react'
-import type { BathZone, Cadence, Chore, Household, Person } from '../types'
+import { encodeShareHash } from '../lib/share'
+import type { AwayMap, BathZone, Cadence, Chore, Household, Person } from '../types'
 
 interface SetupPanelProps {
   household: Household
+  away: AwayMap
   onChange: (household: Household) => void
+  onAwayChange: (away: AwayMap) => void
   onReset: () => void
   onCopyShareLink: () => Promise<string>
 }
 
 const bathZones: BathZone[] = ['up', 'down']
 const cadences: Cadence[] = ['weekly', 'biweekly']
+const cleanName = (value: string, fallback: string) => value.trim() || fallback
 
 const slugify = (value: string, fallback: string) => {
   const slug = value
@@ -45,13 +49,19 @@ const makeUniqueId = (
 
 function SetupPanel({
   household,
+  away,
   onChange,
+  onAwayChange,
   onReset,
   onCopyShareLink,
 }: SetupPanelProps) {
   const [copyStatus, setCopyStatus] = useState<
     'idle' | 'copying' | 'copied' | 'error'
   >('idle')
+  const [shareUrl, setShareUrl] = useState('')
+  const hasBlankNames =
+    household.people.some((person) => person.name.trim().length === 0) ||
+    household.chores.some((chore) => chore.name.trim().length === 0)
 
   const updateHousehold = (changes: Partial<Household>) => {
     onChange({ ...household, ...changes })
@@ -84,6 +94,20 @@ function SetupPanel({
     updateHousehold({
       people: household.people.filter((person) => person.id !== personId),
     })
+
+    if (personId in away) {
+      const nextAway = { ...away }
+      delete nextAway[personId]
+      onAwayChange(nextAway)
+    }
+  }
+
+  const finalizePersonName = (personId: string, value: string) => {
+    const name = cleanName(value, 'Unnamed person')
+
+    if (name !== value) {
+      updatePerson(personId, { name })
+    }
   }
 
   const updateChore = (choreId: string, changes: Partial<Chore>) => {
@@ -115,18 +139,54 @@ function SetupPanel({
     })
   }
 
+  const finalizeChoreName = (choreId: string, value: string) => {
+    const name = cleanName(value, 'Unnamed chore')
+
+    if (name !== value) {
+      updateChore(choreId, { name })
+    }
+  }
+
+  const buildManualShareUrl = () => {
+    if (typeof window === 'undefined') {
+      return ''
+    }
+
+    const shareHash = encodeShareHash({ household, away })
+    const url = new URL(window.location.href)
+    url.hash = shareHash.startsWith('#') ? shareHash : `#${shareHash}`
+
+    return url.toString()
+  }
+
   const handleCopyShareLink = async () => {
+    if (hasBlankNames) {
+      setCopyStatus('error')
+      setShareUrl('')
+      return
+    }
+
     setCopyStatus('copying')
 
     try {
-      await onCopyShareLink()
+      const copiedUrl = await onCopyShareLink()
+      setShareUrl(copiedUrl)
       setCopyStatus('copied')
       window.setTimeout(() => setCopyStatus('idle'), 1800)
     } catch {
+      setShareUrl(buildManualShareUrl())
       setCopyStatus('error')
-      window.setTimeout(() => setCopyStatus('idle'), 2400)
     }
   }
+
+  const copyFeedback =
+    hasBlankNames
+      ? 'Names are required before sharing.'
+      : copyStatus === 'error'
+        ? shareUrl
+          ? 'Clipboard blocked the copy. Select the link below to copy it manually.'
+          : 'Could not create a share link.'
+        : ''
 
   return (
     <section className="setup-panel" aria-labelledby="setup-heading">
@@ -155,9 +215,13 @@ function SetupPanel({
                 <input
                   type="text"
                   value={person.name}
+                  required
+                  aria-invalid={person.name.trim().length === 0}
+                  aria-describedby="setup-name-help"
                   onChange={(event) =>
                     updatePerson(person.id, { name: event.target.value })
                   }
+                  onBlur={() => finalizePersonName(person.id, person.name)}
                 />
               </label>
 
@@ -182,13 +246,20 @@ function SetupPanel({
               <button
                 type="button"
                 className="danger-button"
+                aria-label={`Remove ${person.name.trim() || 'unnamed person'}`}
                 onClick={() => removePerson(person.id)}
               >
                 Remove
               </button>
             </div>
           ))}
+          {household.people.length === 0 ? (
+            <p className="empty-state">No people yet. Add someone to build the rota.</p>
+          ) : null}
         </div>
+        <p id="setup-name-help" className="field-help">
+          Names are trimmed on blur and cannot be blank before sharing.
+        </p>
       </section>
 
       <section className="setup-section" aria-labelledby="setup-chores-heading">
@@ -207,9 +278,13 @@ function SetupPanel({
                 <input
                   type="text"
                   value={chore.name}
+                  required
+                  aria-invalid={chore.name.trim().length === 0}
+                  aria-describedby="setup-name-help"
                   onChange={(event) =>
                     updateChore(chore.id, { name: event.target.value })
                   }
+                  onBlur={() => finalizeChoreName(chore.id, chore.name)}
                 />
               </label>
 
@@ -256,12 +331,16 @@ function SetupPanel({
               <button
                 type="button"
                 className="danger-button"
+                aria-label={`Remove ${chore.name.trim() || 'unnamed chore'}`}
                 onClick={() => removeChore(chore.id)}
               >
                 Remove
               </button>
             </div>
           ))}
+          {household.chores.length === 0 ? (
+            <p className="empty-state">No chores yet. Add one when the flat is ready.</p>
+          ) : null}
         </div>
       </section>
 
@@ -296,14 +375,30 @@ function SetupPanel({
           <button
             type="button"
             className="primary-button"
-            disabled={copyStatus === 'copying'}
+            disabled={copyStatus === 'copying' || hasBlankNames}
+            aria-describedby="copy-feedback"
             onClick={() => void handleCopyShareLink()}
           >
-            {copyStatus === 'copied' ? 'Copied!' : 'Copy share link'}
+            {copyStatus === 'copying'
+              ? 'Copying...'
+              : copyStatus === 'copied'
+                ? 'Copied!'
+                : 'Copy share link'}
           </button>
-          <span className="copy-feedback" aria-live="polite">
-            {copyStatus === 'error' ? 'Could not copy link.' : ''}
+          <span id="copy-feedback" className="copy-feedback" aria-live="polite">
+            {copyFeedback}
           </span>
+          {copyStatus === 'error' && shareUrl ? (
+            <label className="field share-link-fallback">
+              <span>Share link</span>
+              <input
+                type="text"
+                value={shareUrl}
+                readOnly
+                onFocus={(event) => event.currentTarget.select()}
+              />
+            </label>
+          ) : null}
         </div>
       </section>
     </section>

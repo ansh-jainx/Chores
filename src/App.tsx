@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { KeyboardEvent } from 'react'
 import AwayPanel from './components/AwayPanel'
 import SetupPanel from './components/SetupPanel'
 import ThisWeek from './components/ThisWeek'
@@ -20,6 +21,7 @@ function App() {
     away,
     ready,
     setHousehold,
+    setAway,
     toggleAway,
     resetToDefaults,
     copyShareLink,
@@ -35,6 +37,37 @@ function App() {
 
   const isLoading =
     !ready || weekKey === '' || household == null || away == null
+
+  const activateTab = (tabId: ActiveTab) => {
+    setActiveTab(tabId)
+  }
+
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    const currentIndex = tabs.findIndex((tab) => tab.id === activeTab)
+    const lastIndex = tabs.length - 1
+    let nextIndex = currentIndex
+
+    if (event.key === 'ArrowRight') {
+      nextIndex = currentIndex === lastIndex ? 0 : currentIndex + 1
+    } else if (event.key === 'ArrowLeft') {
+      nextIndex = currentIndex === 0 ? lastIndex : currentIndex - 1
+    } else if (event.key === 'Home') {
+      nextIndex = 0
+    } else if (event.key === 'End') {
+      nextIndex = lastIndex
+    } else {
+      return
+    }
+
+    event.preventDefault()
+    const nextTab = tabs[nextIndex]
+    const tabButton = event.currentTarget.querySelector<HTMLButtonElement>(
+      `#tab-${nextTab.id}`,
+    )
+
+    tabButton?.focus()
+    activateTab(nextTab.id)
+  }
 
   const renderPanel = () => {
     if (isLoading || household == null || away == null) {
@@ -63,7 +96,9 @@ function App() {
       return (
         <SetupPanel
           household={household}
+          away={away}
           onChange={setHousehold}
+          onAwayChange={setAway}
           onReset={resetToDefaults}
           onCopyShareLink={copyShareLink}
         />
@@ -99,6 +134,7 @@ function App() {
         className="tab-list"
         aria-label="Flat Chores sections"
         role="tablist"
+        onKeyDown={handleTabKeyDown}
       >
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id
@@ -106,11 +142,14 @@ function App() {
           return (
             <button
               key={tab.id}
+              id={`tab-${tab.id}`}
               type="button"
               role="tab"
               className={`tab-button${isActive ? ' is-active' : ''}`}
               aria-selected={isActive}
-              onClick={() => setActiveTab(tab.id)}
+              aria-controls={`panel-${tab.id}`}
+              tabIndex={isActive ? 0 : -1}
+              onClick={() => activateTab(tab.id)}
             >
               <span>{tab.label}</span>
               <small>{tab.hint}</small>
@@ -124,6 +163,9 @@ function App() {
           className="tab-panel"
           key={isLoading ? 'loading' : activeTab}
           role="tabpanel"
+          id={`panel-${activeTab}`}
+          aria-labelledby={`tab-${activeTab}`}
+          tabIndex={0}
         >
           {renderPanel()}
         </div>
