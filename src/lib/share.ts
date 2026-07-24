@@ -1,4 +1,5 @@
 import type { PersistedState } from '../types'
+import { parsePersistedState } from './persistedState'
 
 function encodeBase64Url(value: string): string {
   const bytes = new TextEncoder().encode(value)
@@ -20,22 +21,10 @@ function decodeBase64Url(value: string): string | null {
     const binary = atob(base64)
     const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
 
-    return new TextDecoder().decode(bytes)
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
   } catch {
     return null
   }
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isPersistedState(value: unknown): value is PersistedState {
-  if (!isObject(value) || !isObject(value.household) || !isObject(value.away)) {
-    return false
-  }
-
-  return Array.isArray(value.household.people) && Array.isArray(value.household.chores)
 }
 
 function getShareValue(hash: string): string | null {
@@ -65,7 +54,7 @@ export function decodeShareHash(hash: string): PersistedState | null {
   try {
     const parsedValue: unknown = JSON.parse(json)
 
-    return isPersistedState(parsedValue) ? parsedValue : null
+    return parsePersistedState(parsedValue)
   } catch {
     return null
   }
