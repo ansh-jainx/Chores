@@ -36,33 +36,19 @@ describe('scheduler helpers', () => {
 });
 
 describe('scheduleWeek', () => {
-  it('rotates each non-zone chore fairly over a full people cycle', () => {
-    const household = householdWithChores([
-      'dishes',
-      'bins',
-      'vacuum',
-      'surfaces',
-    ]);
-    const countsByChore = new Map(
-      household.chores.map((chore) => [chore.id, emptyPersonCounts()]),
-    );
+  it('keeps everyone at one chore when there are enough people', () => {
+    const household = householdWithChores(['dishes', 'bins', 'vacuum']);
 
     for (const weekKey of ['2026-W01', '2026-W02', '2026-W03']) {
-      for (const assignment of scheduleWeek(household, {}, weekKey).assignments) {
-        countsByChore.get(assignment.choreId)![assignment.personId] += 1;
-      }
-    }
-
-    for (const counts of countsByChore.values()) {
-      expect(counts).toEqual({
-        ada: 1,
-        ben: 1,
-        cy: 1,
-      });
+      const counts = countAssignmentsByPerson(
+        scheduleWeek(household, {}, weekKey).assignments,
+      );
+      expect(Object.values(counts).every((count) => count === 1)).toBe(true);
+      expect(Object.keys(counts)).toHaveLength(3);
     }
   });
 
-  it('does not let fixed-zone chores skew no-away non-zone rotation', () => {
+  it('prefers empty people so zone chores do not force unnecessary doubles', () => {
     const household: Household = {
       people: basePeople,
       biweeklyParity: 0,
@@ -71,20 +57,55 @@ describe('scheduleWeek', () => {
         { id: 'dishes', name: 'Dishes', cadence: 'weekly' },
       ],
     };
-    const nonZoneCounts: Record<string, number> = { ada: 0, ben: 0, cy: 0 };
 
-    for (const weekKey of ['2026-W01', '2026-W02', '2026-W03']) {
-      const assignment = scheduleWeek(household, {}, weekKey).assignments.find(
-        ({ choreId }) => choreId === 'dishes',
-      )!;
-      nonZoneCounts[assignment.personId] += 1;
-    }
-
-    expect(nonZoneCounts).toEqual({
+    const schedule = scheduleWeek(household, {}, '2026-W01');
+    expect(countAssignmentsByPerson(schedule.assignments)).toEqual({
       ada: 1,
       ben: 1,
-      cy: 1,
+      // cy may be empty — only 2 chores for 3 people
     });
+    expect(
+      Math.max(...Object.values(countAssignmentsByPerson(schedule.assignments))),
+    ).toBe(1);
+  });
+
+  it('uses cardboard before P/A/G before towels when a second chore is required', () => {
+    const household: Household = {
+      people: [
+        { id: 'p1', name: 'P1', bathZone: 'up' },
+        { id: 'p2', name: 'P2', bathZone: 'down' },
+        { id: 'p3', name: 'P3', bathZone: 'up' },
+      ],
+      biweeklyParity: 0,
+      chores: [
+        { id: 'kitchen', name: 'Kitchen', cadence: 'weekly', effort: 'heavy' },
+        { id: 'bath-up', name: 'Bath up', cadence: 'weekly', zone: 'up', effort: 'heavy' },
+        { id: 'bath-down', name: 'Bath down', cadence: 'weekly', zone: 'down', effort: 'heavy' },
+        { id: 'cardboard', name: 'Cardboard', cadence: 'weekly', effort: 'light' },
+        { id: 'pag', name: 'P/A/G', cadence: 'weekly', effort: 'medium' },
+        { id: 'towels', name: 'Towels', cadence: 'weekly', effort: 'medium' },
+      ],
+    };
+
+    // 6 chores / 3 people ⇒ everyone gets 2. The three second chores should be
+    // cardboard, pag, and towels (the preferred stackers), not a second heavy.
+    const schedule = scheduleWeek(household, {}, '2026-W30');
+    const byPerson = new Map<string, string[]>();
+    for (const assignment of schedule.assignments) {
+      const list = byPerson.get(assignment.personId) ?? [];
+      list.push(assignment.choreId);
+      byPerson.set(assignment.personId, list);
+    }
+
+    expect([...byPerson.values()].every((chores) => chores.length === 2)).toBe(true);
+
+    const secondChores = [...byPerson.values()].map((chores) => {
+      // Prefer identifying the non-heavy as the "second" when mixed.
+      const light = chores.find((id) => ['cardboard', 'pag', 'towels'].includes(id));
+      return light ?? chores[1];
+    });
+
+    expect(new Set(secondChores)).toEqual(new Set(['cardboard', 'pag', 'towels']));
   });
 
   it('staggers biweekly chores across alternating weeks', () => {

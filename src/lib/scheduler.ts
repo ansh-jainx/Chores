@@ -21,16 +21,14 @@ import {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
-const EFFORT_ORDER: Record<Effort, number> = {
-  heavy: 0,
-  medium: 1,
-  light: 2,
-}
-
-const EFFORT_WEIGHT: Record<Effort, number> = {
-  heavy: 3,
-  medium: 2,
-  light: 1,
+/**
+ * Higher = more preferred as someone's *second* chore = assigned later,
+ * after people already have their first chore filled.
+ */
+const SECOND_CHORE_PREFERENCE: Record<string, number> = {
+  cardboard: 100,
+  pag: 80,
+  towels: 60,
 }
 
 export function choreEffort(chore: Chore): Effort {
@@ -90,11 +88,10 @@ export function scheduleWeek(
   const { week: weekNumber } = parseWeekKey(weekKey)
   const rotationOrdinal = weekOrdinal(weekKey)
   const presentPeople = peoplePresent(household, away, weekKey)
-  const hasAwayPeople = presentPeople.length < household.people.length
   const heavyCountByPerson: Map<string, number> = new Map(
     presentPeople.map((person) => [person.id, 0] as const),
   )
-  const loadByPerson: Map<string, number> = new Map(
+  const choreCountByPerson: Map<string, number> = new Map(
     presentPeople.map((person) => [person.id, 0] as const),
   )
   const assignments: Assignment[] = []
@@ -120,17 +117,16 @@ export function scheduleWeek(
         return true
       }
 
-      // Stagger biweekly chores across alternating weeks so they don't all pile up.
       const phase = biweeklyPhases.get(chore.id) ?? 0
       const targetParity = (phase + household.biweeklyParity) % 2
       return weekNumber % 2 === targetParity
     })
     .sort((left, right) => {
-      const effortDelta =
-        EFFORT_ORDER[choreEffort(left.chore)] -
-        EFFORT_ORDER[choreEffort(right.chore)]
-      if (effortDelta !== 0) {
-        return effortDelta
+      // Assign "first chore" jobs early; preferred second chores (cardboard, …) last.
+      const stackDelta =
+        assignLaterScore(left.chore) - assignLaterScore(right.chore)
+      if (stackDelta !== 0) {
+        return stackDelta
       }
       return left.choreIndex - right.choreIndex
     })
@@ -158,18 +154,24 @@ export function scheduleWeek(
       }
     }
 
+    // Prefer people with 0 chores; only stack when everyone eligible already has one.
+    const minChores = Math.min(
+      ...candidates.map((person) => choreCountByPerson.get(person.id) ?? 0),
+    )
+    candidates = candidates.filter(
+      (person) => (choreCountByPerson.get(person.id) ?? 0) === minChores,
+    )
+
     const rotationSeed = choreIndex + rotationOrdinal
-    const person = hasAwayPeople
-      ? pickLightestCyclicPerson(candidates, loadByPerson, rotationSeed)
-      : pickCyclicPerson(candidates, rotationSeed)
+    const person = pickCyclicPerson(candidates, rotationSeed)
 
     heavyCountByPerson.set(
       person.id,
       (heavyCountByPerson.get(person.id) ?? 0) + (effort === 'heavy' ? 1 : 0),
     )
-    loadByPerson.set(
+    choreCountByPerson.set(
       person.id,
-      (loadByPerson.get(person.id) ?? 0) + EFFORT_WEIGHT[effort],
+      (choreCountByPerson.get(person.id) ?? 0) + 1,
     )
 
     assignments.push({
@@ -211,6 +213,22 @@ export function countRangeDaysInWeek(
   return overlapDaysInWeek(from, until, weekKey)
 }
 
+function assignLaterScore(chore: Chore): number {
+  const preferred = SECOND_CHORE_PREFERENCE[chore.id]
+  if (preferred !== undefined) {
+    return preferred
+  }
+
+  const effort = choreEffort(chore)
+  if (effort === 'heavy') {
+    return 0
+  }
+  if (effort === 'medium') {
+    return 40
+  }
+  return 90
+}
+
 function rangesOverlap(
   fromA: string,
   untilA: string,
@@ -230,32 +248,6 @@ function pickCyclicPerson(candidates: Person[], rotationSeed: number): Person {
   }
 
   return candidates[positiveModulo(rotationSeed, candidates.length)]
-}
-
-function pickLightestCyclicPerson(
-  candidates: Person[],
-  loadByPerson: Map<string, number>,
-  rotationSeed: number,
-): Person {
-  if (candidates.length === 0) {
-    throw new Error('Cannot choose from an empty candidate list')
-  }
-
-  const startIndex = positiveModulo(rotationSeed, candidates.length)
-  let bestPerson = candidates[startIndex]
-  let bestLoad = loadByPerson.get(bestPerson.id) ?? 0
-
-  for (let step = 1; step < candidates.length; step += 1) {
-    const candidate = candidates[(startIndex + step) % candidates.length]
-    const candidateLoad = loadByPerson.get(candidate.id) ?? 0
-
-    if (candidateLoad < bestLoad) {
-      bestPerson = candidate
-      bestLoad = candidateLoad
-    }
-  }
-
-  return bestPerson
 }
 
 function positiveModulo(value: number, divisor: number): number {

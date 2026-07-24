@@ -93,6 +93,53 @@ describe('scheduleWeek fairness integration', () => {
     expect(onEven.length + onOdd.length).toBe(biweeklyIds.length)
     expect(onEven.every((id) => !odd.has(id))).toBe(true)
   })
+  it('gives at most one chore each on a normal default week', () => {
+    for (const weekKey of WEEK_KEYS) {
+      const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
+      const counts = new Map<string, number>()
+      for (const assignment of schedule.assignments) {
+        counts.set(
+          assignment.personId,
+          (counts.get(assignment.personId) ?? 0) + 1,
+        )
+      }
+      expect(Math.max(0, ...counts.values())).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('stacks cardboard ahead of other side chores when holidays force doubles', () => {
+    // Leave only 4 people home while 5 chores are due on an even week
+    // (baths, kitchen, hallway, pag).
+    const away = {
+      'person-5': [
+        { id: 'h1', name: 'Trip', from: '2026-07-20', until: '2026-07-27' },
+      ],
+      'person-6': [
+        { id: 'h2', name: 'Trip', from: '2026-07-20', until: '2026-07-27' },
+      ],
+    }
+    const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, away, '2026-W30')
+    const counts = new Map<string, number>()
+    const choresByPerson = new Map<string, string[]>()
+    for (const assignment of schedule.assignments) {
+      counts.set(
+        assignment.personId,
+        (counts.get(assignment.personId) ?? 0) + 1,
+      )
+      const list = choresByPerson.get(assignment.personId) ?? []
+      list.push(assignment.choreId)
+      choresByPerson.set(assignment.personId, list)
+    }
+
+    expect(Math.max(...counts.values())).toBe(2)
+    const doubled = [...choresByPerson.entries()].find(
+      ([, chores]) => chores.length === 2,
+    )
+    expect(doubled).toBeTruthy()
+    // Even week stackable biweekly is pag (cardboard is on the odd set).
+    expect(doubled![1]).toContain('pag')
+  })
+
   it('keeps weekly non-zone chore totals roughly even over a six-week window', () => {
     const countsByWeek = WEEK_KEYS.map((weekKey) => {
       const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
