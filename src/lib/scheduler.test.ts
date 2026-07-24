@@ -187,6 +187,43 @@ describe('scheduleWeek', () => {
     ]);
   });
 
+  it('never gives one person two heavy chores in the same week when avoidable', () => {
+    const household: Household = {
+      people: [
+        { id: 'p1', name: 'P1', bathZone: 'up' },
+        { id: 'p2', name: 'P2', bathZone: 'down' },
+        { id: 'p3', name: 'P3', bathZone: 'up' },
+        { id: 'p4', name: 'P4', bathZone: 'down' },
+        { id: 'p5', name: 'P5', bathZone: 'up' },
+        { id: 'p6', name: 'P6', bathZone: 'down' },
+      ],
+      biweeklyParity: 0,
+      chores: [
+        { id: 'bath-up', name: 'Bath up', cadence: 'weekly', zone: 'up', effort: 'heavy' },
+        { id: 'bath-down', name: 'Bath down', cadence: 'weekly', zone: 'down', effort: 'heavy' },
+        { id: 'kitchen', name: 'Kitchen', cadence: 'weekly', effort: 'heavy' },
+        { id: 'hallway', name: 'Hallway', cadence: 'weekly', effort: 'heavy' },
+        { id: 'towels', name: 'Towels', cadence: 'biweekly', effort: 'medium' },
+      ],
+    };
+
+    for (const weekKey of ['2026-W30', '2026-W31', '2026-W32']) {
+      const heavyByPerson = new Map<string, number>();
+      for (const assignment of scheduleWeek(household, {}, weekKey).assignments) {
+        if (assignment.effort !== 'heavy') {
+          continue;
+        }
+        heavyByPerson.set(
+          assignment.personId,
+          (heavyByPerson.get(assignment.personId) ?? 0) + 1,
+        );
+      }
+
+      expect([...heavyByPerson.values()].every((count) => count === 1)).toBe(true);
+      expect(heavyByPerson.size).toBe(4);
+    }
+  });
+
   it('is deterministic for the same week, people order, chores order, and away map', () => {
     const household = householdWithChores(['dishes', 'bins', 'vacuum']);
     const away: AwayMap = {

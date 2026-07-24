@@ -8,13 +8,13 @@
     { "id": "person-6", "name": "Person 6", "bathZone": "down" }
   ],
   "chores": [
-    { "id": "bath-up", "name": "Bath up", "cadence": "weekly", "zone": "up" },
-    { "id": "bath-down", "name": "Bath down", "cadence": "weekly", "zone": "down" },
-    { "id": "kitchen", "name": "Kitchen", "cadence": "weekly" },
-    { "id": "hallway", "name": "Hallway", "cadence": "weekly" },
-    { "id": "cardboard", "name": "Cardboard", "cadence": "biweekly" },
-    { "id": "pag", "name": "P/A/G (pet / alu / glass)", "cadence": "biweekly" },
-    { "id": "towels", "name": "Towels", "cadence": "biweekly" }
+    { "id": "bath-up", "name": "Bath up", "cadence": "weekly", "zone": "up", "effort": "heavy" },
+    { "id": "bath-down", "name": "Bath down", "cadence": "weekly", "zone": "down", "effort": "heavy" },
+    { "id": "kitchen", "name": "Kitchen", "cadence": "weekly", "effort": "heavy" },
+    { "id": "hallway", "name": "Hallway", "cadence": "weekly", "effort": "heavy" },
+    { "id": "cardboard", "name": "Cardboard", "cadence": "biweekly", "effort": "light" },
+    { "id": "pag", "name": "P/A/G (pet / alu / glass)", "cadence": "biweekly", "effort": "medium" },
+    { "id": "towels", "name": "Towels", "cadence": "biweekly", "effort": "medium" }
   ],
   "biweeklyParity": 0
 }

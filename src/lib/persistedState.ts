@@ -3,6 +3,7 @@ import type {
   BathZone,
   Cadence,
   Chore,
+  Effort,
   Household,
   PersistedState,
   Person,
@@ -37,6 +38,10 @@ function isBathZone(value: unknown): value is BathZone {
 
 function isCadence(value: unknown): value is Cadence {
   return value === 'weekly' || value === 'biweekly'
+}
+
+function isEffort(value: unknown): value is Effort {
+  return value === 'heavy' || value === 'medium' || value === 'light'
 }
 
 function parsePerson(value: unknown): Person | null {
@@ -80,23 +85,28 @@ function parseChore(value: unknown): Chore | null {
     return null
   }
 
+  let zone: BathZone | undefined
   if (hasOwn(value, 'zone') && value.zone !== undefined) {
     if (!isBathZone(value.zone)) {
       return null
     }
+    zone = value.zone
+  }
 
-    return {
-      id: value.id,
-      name: value.name,
-      cadence: value.cadence,
-      zone: value.zone,
+  let effort: Effort | undefined
+  if (hasOwn(value, 'effort') && value.effort !== undefined) {
+    if (!isEffort(value.effort)) {
+      return null
     }
+    effort = value.effort
   }
 
   return {
     id: value.id,
     name: value.name,
     cadence: value.cadence,
+    ...(zone ? { zone } : {}),
+    ...(effort ? { effort } : {}),
   }
 }
 

@@ -1,6 +1,14 @@
 import { useState } from 'react'
 import { encodeShareHash } from '../lib/share'
-import type { AwayMap, BathZone, Cadence, Chore, Household, Person } from '../types'
+import type {
+  AwayMap,
+  BathZone,
+  Cadence,
+  Chore,
+  Effort,
+  Household,
+  Person,
+} from '../types'
 
 interface SetupPanelProps {
   household: Household
@@ -13,6 +21,7 @@ interface SetupPanelProps {
 
 const bathZones: BathZone[] = ['up', 'down']
 const cadences: Cadence[] = ['weekly', 'biweekly']
+const efforts: Effort[] = ['heavy', 'medium', 'light']
 const cleanName = (value: string, fallback: string) => value.trim() || fallback
 
 const slugify = (value: string, fallback: string) => {
@@ -128,6 +137,7 @@ function SetupPanel({
       ),
       name,
       cadence: 'weekly',
+      effort: 'heavy',
     }
 
     updateHousehold({ chores: [...household.chores, chore] })
@@ -301,6 +311,24 @@ function SetupPanel({
                   {cadences.map((cadence) => (
                     <option value={cadence} key={cadence}>
                       {cadence}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field field-effort">
+                <span>Effort</span>
+                <select
+                  value={chore.effort ?? 'medium'}
+                  onChange={(event) =>
+                    updateChore(chore.id, {
+                      effort: event.target.value as Effort,
+                    })
+                  }
+                >
+                  {efforts.map((effort) => (
+                    <option value={effort} key={effort}>
+                      {effort}
                     </option>
                   ))}
                 </select>

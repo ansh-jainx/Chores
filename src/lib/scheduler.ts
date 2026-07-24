@@ -1,11 +1,29 @@
 import type {
   Assignment,
   AwayMap,
+  Chore,
+  Effort,
   Household,
   Person,
   WeekSchedule,
 } from '../types';
 import { parseWeekKey, weekOrdinal } from './weeks';
+
+const EFFORT_ORDER: Record<Effort, number> = {
+  heavy: 0,
+  medium: 1,
+  light: 2,
+};
+
+const EFFORT_WEIGHT: Record<Effort, number> = {
+  heavy: 3,
+  medium: 2,
+  light: 1,
+};
+
+export function choreEffort(chore: Chore): Effort {
+  return chore.effort ?? 'medium';
+}
 
 export function isAway(
   away: AwayMap,
@@ -32,6 +50,9 @@ export function scheduleWeek(
   const rotationOrdinal = weekOrdinal(weekKey);
   const presentPeople = peoplePresent(household, away, weekKey);
   const hasAwayPeople = presentPeople.length < household.people.length;
+  const heavyCountByPerson: Map<string, number> = new Map(
+    presentPeople.map((person) => [person.id, 0] as const),
+  );
   const loadByPerson: Map<string, number> = new Map(
     presentPeople.map((person) => [person.id, 0] as const),
   );
@@ -44,39 +65,76 @@ export function scheduleWeek(
     };
   }
 
-  household.chores.forEach((chore, choreIndex) => {
-    if (
-      chore.cadence === 'biweekly' &&
-      weekNumber % 2 !== household.biweeklyParity
-    ) {
-      return;
-    }
+  const dueChores = household.chores
+    .map((chore, choreIndex) => ({ chore, choreIndex }))
+    .filter(({ chore }) => {
+      if (chore.cadence === 'biweekly' && weekNumber % 2 !== household.biweeklyParity) {
+        return false;
+      }
+      return true;
+    })
+    .sort((left, right) => {
+      const effortDelta =
+        EFFORT_ORDER[choreEffort(left.chore)] - EFFORT_ORDER[choreEffort(right.chore)];
+      if (effortDelta !== 0) {
+        return effortDelta;
+      }
+      return left.choreIndex - right.choreIndex;
+    });
 
+  for (const { chore, choreIndex } of dueChores) {
+    const effort = choreEffort(chore);
     let candidates = chore.zone
       ? presentPeople.filter((person) => person.bathZone === chore.zone)
       : presentPeople;
-    let warning: string | undefined;
+    const warnings: string[] = [];
 
     if (chore.zone && candidates.length === 0) {
       candidates = presentPeople;
-      warning = `Zone spill: no bath-${chore.zone} people home`;
+      warnings.push(`Zone spill: no bath-${chore.zone} people home`);
+    }
+
+    if (effort === 'heavy') {
+      const withoutHeavy = candidates.filter(
+        (person) => (heavyCountByPerson.get(person.id) ?? 0) === 0,
+      );
+      if (withoutHeavy.length > 0) {
+        candidates = withoutHeavy;
+      } else {
+        warnings.push('Heavy spill: someone already has a big chore this week');
+      }
     }
 
     const rotationSeed = choreIndex + rotationOrdinal;
-    const shouldPreferLightestLoad = hasAwayPeople || chore.zone !== undefined;
-    const person = shouldPreferLightestLoad
+    // Full house: pure cyclic keeps long-term fairness.
+    // Someone away: prefer lightest current effort load.
+    const person = hasAwayPeople
       ? pickLightestCyclicPerson(candidates, loadByPerson, rotationSeed)
       : pickCyclicPerson(candidates, rotationSeed);
-    loadByPerson.set(person.id, (loadByPerson.get(person.id) ?? 0) + 1);
+
+    heavyCountByPerson.set(
+      person.id,
+      (heavyCountByPerson.get(person.id) ?? 0) + (effort === 'heavy' ? 1 : 0),
+    );
+    loadByPerson.set(
+      person.id,
+      (loadByPerson.get(person.id) ?? 0) + EFFORT_WEIGHT[effort],
+    );
 
     assignments.push({
       choreId: chore.id,
       choreName: chore.name,
       personId: person.id,
       personName: person.name,
-      ...(warning ? { warning } : {}),
+      effort,
+      ...(warnings.length > 0 ? { warning: warnings.join(' · ') } : {}),
     });
-  });
+  }
+
+  const order = new Map(household.chores.map((chore, index) => [chore.id, index]));
+  assignments.sort(
+    (left, right) => (order.get(left.choreId) ?? 0) - (order.get(right.choreId) ?? 0),
+  );
 
   return {
     weekKey,

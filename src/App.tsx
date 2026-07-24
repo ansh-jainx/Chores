@@ -10,7 +10,7 @@ import './App.css'
 type ActiveTab = 'week' | 'away' | 'setup'
 
 const tabs: Array<{ id: ActiveTab; label: string; hint: string }> = [
-  { id: 'week', label: 'This week', hint: 'Current rota' },
+  { id: 'week', label: 'This week', hint: 'Your chores' },
   { id: 'away', label: 'Away', hint: 'Mark holidays' },
   { id: 'setup', label: 'Setup', hint: 'Edit flat details' },
 ]
@@ -122,7 +122,7 @@ function App() {
           <p className="eyebrow">Household rota</p>
           <h1>Flat Chores</h1>
           <p className="app-subtitle">
-            A calm weekly checklist for keeping the flat fair.
+            Pick your name, see your chores for the week.
           </p>
         </div>
         <div className="header-chip" aria-label="Selected week">

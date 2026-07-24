@@ -1,5 +1,7 @@
 export type BathZone = "up" | "down";
 export type Cadence = "weekly" | "biweekly";
+/** heavy = big weekly jobs; medium = side tasks; light = quick jobs */
+export type Effort = "heavy" | "medium" | "light";
 
 export interface Person {
   id: string;
@@ -13,6 +15,8 @@ export interface Chore {
   cadence: Cadence;
   /** If set, only people with matching bathZone are eligible (unless zone spill). */
   zone?: BathZone;
+  /** Defaults to medium when omitted (older share links). */
+  effort?: Effort;
 }
 
 export interface Household {
@@ -30,6 +34,7 @@ export interface Assignment {
   choreName: string;
   personId: string;
   personName: string;
+  effort: Effort;
   warning?: string;
 }
 

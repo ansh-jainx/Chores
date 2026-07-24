@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import type {
   Assignment,
   AwayMap,
+  Effort,
   Household,
   Person,
   WeekSchedule,
@@ -13,6 +15,14 @@ export interface ThisWeekProps {
   away: AwayMap
   weekKey: string
   onWeekChange?: (weekKey: string) => void
+}
+
+const VIEWER_STORAGE_KEY = 'flat-chores-viewer-v1'
+
+const EFFORT_LABEL: Record<Effort, string> = {
+  heavy: 'Big',
+  medium: 'Medium',
+  light: 'Light',
 }
 
 function isAway(away: AwayMap, personId: string, weekKey: string) {
@@ -69,12 +79,56 @@ function formatAssignmentCount(count: number) {
   return `${count} ${count === 1 ? 'chore' : 'chores'}`
 }
 
+function readStoredViewerId(people: Person[]): string {
+  if (typeof window === 'undefined' || people.length === 0) {
+    return people[0]?.id ?? ''
+  }
+
+  try {
+    const stored = window.localStorage.getItem(VIEWER_STORAGE_KEY)
+    if (stored && people.some((person) => person.id === stored)) {
+      return stored
+    }
+  } catch {
+    // Ignore storage failures.
+  }
+
+  return people[0]?.id ?? ''
+}
+
 export function ThisWeek({
   household,
   away,
   weekKey,
   onWeekChange,
 }: ThisWeekProps) {
+  const [viewerId, setViewerId] = useState(() =>
+    readStoredViewerId(household.people),
+  )
+
+  useEffect(() => {
+    if (household.people.length === 0) {
+      setViewerId('')
+      return
+    }
+
+    if (!household.people.some((person) => person.id === viewerId)) {
+      setViewerId(readStoredViewerId(household.people))
+    }
+  }, [household.people, viewerId])
+
+  useEffect(() => {
+    if (!viewerId || typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      window.localStorage.setItem(VIEWER_STORAGE_KEY, viewerId)
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [viewerId])
+
   const thisWeek = getWeekSchedule(household, away, weekKey)
   const previousWeekKey = addWeeks(weekKey, -1)
   const nextWeekKey = addWeeks(weekKey, 1)
@@ -98,6 +152,11 @@ export function ThisWeek({
     (total, person) => total + (nextWeekByPerson.get(person.id)?.length ?? 0),
     0,
   )
+
+  const viewer = household.people.find((person) => person.id === viewerId)
+  const viewerAway = viewer ? isAway(away, viewer.id, weekKey) : false
+  const myAssignments = viewer ? (thisWeekByPerson.get(viewer.id) ?? []) : []
+  const others = household.people.filter((person) => person.id !== viewerId)
 
   const changeWeek = (newWeekKey: string) => {
     onWeekChange?.(newWeekKey)
@@ -139,54 +198,120 @@ export function ThisWeek({
       {household.people.length === 0 ? (
         <p className="empty-state">No people have been added yet.</p>
       ) : (
-        <div className="assignment-groups" aria-label="Assignments grouped by person">
-          {isEveryoneAwayThisWeek ? (
-            <p className="empty-state" role="status">
-              Everyone is away this week, so no chores are assigned.
-            </p>
+        <>
+          <div className="viewer-picker" role="group" aria-label="Who is looking">
+            <p className="viewer-picker__label">I am</p>
+            <div className="viewer-picker__chips">
+              {household.people.map((person) => {
+                const selected = person.id === viewerId
+                return (
+                  <button
+                    key={person.id}
+                    type="button"
+                    className={`viewer-chip${selected ? ' is-selected' : ''}`}
+                    aria-pressed={selected}
+                    onClick={() => setViewerId(person.id)}
+                  >
+                    {person.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {viewer ? (
+            <section
+              className="my-week"
+              aria-labelledby="my-week-heading"
+            >
+              <p className="my-week__eyebrow">Your chores</p>
+              <h3 id="my-week-heading">{viewer.name}</h3>
+              {viewerAway ? (
+                <p className="my-week__empty" role="status">
+                  You are away this week — no chores assigned.
+                </p>
+              ) : isEveryoneAwayThisWeek ? (
+                <p className="my-week__empty" role="status">
+                  Everyone is away this week, so no chores are assigned.
+                </p>
+              ) : myAssignments.length === 0 ? (
+                <p className="my-week__empty" role="status">
+                  Nothing assigned to you this week.
+                </p>
+              ) : (
+                <ul className="my-week__list" aria-label="Your chores this week">
+                  {myAssignments.map((assignment) => (
+                    <li
+                      key={assignment.choreId}
+                      className={`my-chore my-chore--${assignment.effort}`}
+                    >
+                      <span className="my-chore__name">{assignment.choreName}</span>
+                      <span className="my-chore__effort">
+                        {EFFORT_LABEL[assignment.effort]}
+                      </span>
+                      {assignment.warning ? (
+                        <span className="warning" role="note">
+                          {assignment.warning}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           ) : null}
-          {household.people.map((person) => {
-            const personIsAway = isAway(away, person.id, weekKey)
-            const assignments = thisWeekByPerson.get(person.id) ?? []
-            const headingId = `this-week-person-${person.id}`
 
-            return (
-              <section
-                key={person.id}
-                className="person-block"
-                aria-labelledby={headingId}
-              >
-                <header>
-                  <h3 id={headingId}>{person.name}</h3>
+          <div className="assignment-groups" aria-label="Everyone else this week">
+            <h3 className="rest-heading">Rest of the flat</h3>
+            {others.map((person) => {
+              const personIsAway = isAway(away, person.id, weekKey)
+              const assignments = thisWeekByPerson.get(person.id) ?? []
+              const headingId = `this-week-person-${person.id}`
+
+              return (
+                <section
+                  key={person.id}
+                  className="person-block"
+                  aria-labelledby={headingId}
+                >
+                  <header>
+                    <h3 id={headingId}>{person.name}</h3>
+                    {personIsAway ? (
+                      <span className="away-badge" aria-label={`${person.name} is away`}>
+                        Away
+                      </span>
+                    ) : null}
+                  </header>
+
                   {personIsAway ? (
-                    <span className="away-badge" aria-label={`${person.name} is away`}>
-                      Away
-                    </span>
-                  ) : null}
-                </header>
-
-                {personIsAway ? (
-                  <p>No chores assigned while away.</p>
-                ) : assignments.length === 0 ? (
-                  <p>No chores assigned this week.</p>
-                ) : (
-                  <ul aria-label={`${person.name}'s chores`}>
-                    {assignments.map((assignment) => (
-                      <li key={assignment.choreId} className="chore-pill">
-                        <span>{assignment.choreName}</span>
-                        {assignment.warning ? (
-                          <span className="warning" role="note">
-                            {assignment.warning}
+                    <p>No chores assigned while away.</p>
+                  ) : assignments.length === 0 ? (
+                    <p>No chores assigned this week.</p>
+                  ) : (
+                    <ul aria-label={`${person.name}'s chores`}>
+                      {assignments.map((assignment) => (
+                        <li
+                          key={assignment.choreId}
+                          className={`chore-pill chore-pill--${assignment.effort}`}
+                        >
+                          <span>{assignment.choreName}</span>
+                          <span className="chore-pill__effort">
+                            {EFFORT_LABEL[assignment.effort]}
                           </span>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )
-          })}
-        </div>
+                          {assignment.warning ? (
+                            <span className="warning" role="note">
+                              {assignment.warning}
+                            </span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )
+            })}
+          </div>
+        </>
       )}
 
       <aside aria-labelledby="next-week-heading">
