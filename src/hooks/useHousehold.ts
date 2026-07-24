@@ -6,10 +6,10 @@ import { loadState, saveState } from "../lib/storage";
 import type { AwayMap, Household, PersistedState } from "../types";
 
 export interface UseHouseholdResult {
-  household: Household | null;
+  household: Household;
   away: AwayMap;
   ready: boolean;
-  setHousehold: Dispatch<SetStateAction<Household | null>>;
+  setHousehold: Dispatch<SetStateAction<Household>>;
   setAway: Dispatch<SetStateAction<AwayMap>>;
   toggleAway: (personId: string, weekKey: string) => void;
   resetToDefaults: () => Promise<void>;
@@ -17,6 +17,11 @@ export interface UseHouseholdResult {
 }
 
 const SHARE_HASH_PREFIX = "#s=";
+const INITIAL_HOUSEHOLD: Household = {
+  people: [],
+  chores: [],
+  biweeklyParity: 0,
+};
 
 function readShareState(): PersistedState | null {
   if (typeof window === "undefined") {
@@ -55,7 +60,7 @@ function buildShareUrl(state: PersistedState): string {
 }
 
 export function useHousehold(): UseHouseholdResult {
-  const [household, setHousehold] = useState<Household | null>(null);
+  const [household, setHousehold] = useState<Household>(INITIAL_HOUSEHOLD);
   const [away, setAway] = useState<AwayMap>({});
   const [ready, setReady] = useState(false);
 
@@ -88,7 +93,7 @@ export function useHousehold(): UseHouseholdResult {
   }, []);
 
   useEffect(() => {
-    if (!ready || household === null) {
+    if (!ready) {
       return;
     }
 
@@ -126,14 +131,14 @@ export function useHousehold(): UseHouseholdResult {
   }, []);
 
   const copyShareLink = useCallback(async () => {
-    if (household === null) {
+    if (!ready) {
       throw new Error("Household state is not ready.");
     }
 
     const url = buildShareUrl({ household, away });
     await window.navigator.clipboard.writeText(url);
     return url;
-  }, [away, household]);
+  }, [away, household, ready]);
 
   return {
     household,
