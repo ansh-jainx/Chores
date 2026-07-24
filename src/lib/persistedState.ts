@@ -196,8 +196,14 @@ function parseAbsence(value: unknown): Absence | null {
     return null
   }
 
+  const name =
+    hasOwn(value, 'name') && typeof value.name === 'string' && value.name.trim()
+      ? value.name.trim()
+      : 'Holiday'
+
   return {
     id: value.id,
+    name,
     from: value.from,
     until: value.until,
   }
@@ -233,6 +239,7 @@ function parseAway(value: unknown): AwayMap | null {
         try {
           absences.push({
             id: entry,
+            name: 'Holiday',
             from: weekStartDate(entry),
             until: weekEndExclusiveDate(entry),
           })

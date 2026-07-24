@@ -9,7 +9,7 @@ const state: PersistedState = {
     biweeklyParity: 0,
   },
   away: {
-    alex: [{ id: '2026-W30', from: '2026-07-20', until: '2026-07-27' }],
+    alex: [{ id: '2026-W30', name: 'Holiday', from: '2026-07-20', until: '2026-07-27' }],
   },
 }
 

@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react'
 import type { Absence, AwayMap, Household } from '../types'
 import { AWAY_DAY_THRESHOLD } from '../types'
-import { awayDaysInWeek, isAway } from '../lib/scheduler'
+import { awayDaysInWeek } from '../lib/scheduler'
 import {
   addWeeks,
   formatWeekLabel,
-  listUpcomingWeekKeys,
   toWeekKey,
 } from '../lib/weeks'
 
@@ -13,7 +12,12 @@ interface AwayPanelProps {
   household: Household
   away: AwayMap
   weekKey: string
-  onAddAbsence: (personId: string, from: string, until: string) => void
+  onAddAbsence: (
+    personId: string,
+    name: string,
+    from: string,
+    until: string,
+  ) => void
   onRemoveAbsence: (personId: string, absenceId: string) => void
 }
 
@@ -28,208 +32,216 @@ function formatDayLabel(isoDate: string) {
   })
 }
 
+function todayIsoDate() {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function weeksTouchedByAbsence(absence: Absence): Array<{
+  weekKey: string
+  days: number
+  skipsChores: boolean
+}> {
+  const startWeek = toWeekKey(new Date(`${absence.from}T00:00:00Z`))
+  const endWeek = toWeekKey(new Date(`${absence.until}T00:00:00Z`))
+  const results: Array<{ weekKey: string; days: number; skipsChores: boolean }> =
+    []
+  let cursor = addWeeks(startWeek, -1)
+  const last = addWeeks(endWeek, 1)
+
+  while (cursor <= last) {
+    const days = awayDaysInWeek({ preview: [absence] }, 'preview', cursor)
+    if (days > 0) {
+      results.push({
+        weekKey: cursor,
+        days,
+        skipsChores: days >= AWAY_DAY_THRESHOLD,
+      })
+    }
+    cursor = addWeeks(cursor, 1)
+    if (results.length > 12) {
+      break
+    }
+  }
+
+  return results
+}
+
 export function AwayPanel({
   household,
   away,
-  weekKey,
   onAddAbsence,
   onRemoveAbsence,
 }: AwayPanelProps) {
-  const previewWeeks = listUpcomingWeekKeys(weekKey, 6)
-  const [drafts, setDrafts] = useState<Record<string, { from: string; until: string }>>(
-    {},
+  const defaultFrom = useMemo(() => todayIsoDate(), [])
+  const [personId, setPersonId] = useState(household.people[0]?.id ?? '')
+  const [name, setName] = useState('')
+  const [from, setFrom] = useState(defaultFrom)
+  const [until, setUntil] = useState(defaultFrom)
+
+  const selectedPersonId = household.people.some(
+    (person) => person.id === personId,
+  )
+    ? personId
+    : (household.people[0]?.id ?? '')
+
+  const draftAbsence: Absence | null =
+    selectedPersonId && from < until
+      ? {
+          id: 'draft',
+          name: name.trim() || 'Holiday',
+          from,
+          until,
+        }
+      : null
+
+  const draftWeeks = draftAbsence ? weeksTouchedByAbsence(draftAbsence) : []
+
+  const allHolidays = household.people.flatMap((person) =>
+    (away[person.id] ?? []).map((absence) => ({
+      person,
+      absence,
+      weeks: weeksTouchedByAbsence(absence),
+    })),
   )
 
-  const defaultFrom = useMemo(() => {
-    const now = new Date()
-    const y = now.getFullYear()
-    const m = String(now.getMonth() + 1).padStart(2, '0')
-    const d = String(now.getDate()).padStart(2, '0')
-    return `${y}-${m}-${d}`
-  }, [])
+  const canAdd =
+    Boolean(selectedPersonId) && from < until && name.trim().length > 0
 
   return (
     <section className="away-panel" aria-labelledby="away-panel-title">
       <div>
-        <h2 id="away-panel-title">Away / holiday</h2>
+        <h2 id="away-panel-title">Holidays</h2>
         <p>
-          Add a date range: <strong>from</strong> the first day you are away,{' '}
-          <strong>until</strong> the first day you are back. A week counts as away
-          only if you miss <strong>{AWAY_DAY_THRESHOLD}+ days</strong> of that
-          Mon–Sun week — so a Thu→next-Thu trip skips the first week (4 days) and
-          keeps chores in the second (3 days).
+          Choose who is away, name the trip, and pick dates on the calendar. The
+          rota works out which weeks skip chores.
         </p>
       </div>
 
       {household.people.length === 0 ? (
         <p className="empty-state">
-          Add people in setup before marking holidays.
+          Add people in setup before planning holidays.
         </p>
+      ) : (
+        <form
+          className="holiday-form"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (!canAdd) {
+              return
+            }
+            onAddAbsence(selectedPersonId, name, from, until)
+            setName('')
+          }}
+        >
+          <label className="field">
+            <span>Who</span>
+            <select
+              value={selectedPersonId}
+              onChange={(event) => setPersonId(event.target.value)}
+            >
+              {household.people.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field field-name">
+            <span>Holiday name</span>
+            <input
+              type="text"
+              value={name}
+              placeholder="e.g. Summer trip"
+              required
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+
+          <label className="field">
+            <span>Away from</span>
+            <input
+              type="date"
+              value={from}
+              required
+              onChange={(event) => setFrom(event.target.value)}
+            />
+          </label>
+
+          <label className="field">
+            <span>Back on</span>
+            <input
+              type="date"
+              value={until}
+              required
+              onChange={(event) => setUntil(event.target.value)}
+            />
+          </label>
+
+          <button type="submit" className="primary-button" disabled={!canAdd}>
+            Save holiday
+          </button>
+        </form>
+      )}
+
+      {draftAbsence && draftWeeks.length > 0 ? (
+        <div className="holiday-preview" aria-live="polite">
+          <h3>This trip</h3>
+          <ul>
+            {draftWeeks.map((entry) => (
+              <li key={entry.weekKey}>
+                <strong>{formatWeekLabel(entry.weekKey)}</strong>
+                <span>
+                  {entry.skipsChores ? 'No chores' : 'Still has chores'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
-      {household.people.map((person) => {
-        const absences = away[person.id] ?? []
-        const draft = drafts[person.id] ?? {
-          from: defaultFrom,
-          until: defaultFrom,
-        }
-        const personHeadingId = `away-person-${person.id}`
-        const canAdd = draft.from < draft.until
-
-        return (
-          <section
-            className="person-away"
-            key={person.id}
-            aria-labelledby={personHeadingId}
-          >
-            <h3 id={personHeadingId}>{person.name}</h3>
-
-            <div className="absence-form">
-              <label className="field">
-                <span>Away from</span>
-                <input
-                  type="date"
-                  value={draft.from}
-                  onChange={(event) =>
-                    setDrafts((current) => ({
-                      ...current,
-                      [person.id]: { ...draft, from: event.target.value },
-                    }))
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Back on</span>
-                <input
-                  type="date"
-                  value={draft.until}
-                  onChange={(event) =>
-                    setDrafts((current) => ({
-                      ...current,
-                      [person.id]: { ...draft, until: event.target.value },
-                    }))
-                  }
-                />
-              </label>
-              <button
-                type="button"
-                className="primary-button"
-                disabled={!canAdd}
-                onClick={() => {
-                  if (!canAdd) {
-                    return
-                  }
-                  onAddAbsence(person.id, draft.from, draft.until)
-                }}
-              >
-                Add trip
-              </button>
-            </div>
-
-            {absences.length === 0 ? (
-              <p className="empty-state">No holidays saved yet.</p>
-            ) : (
-              <ul className="absence-list" aria-label={`${person.name} holidays`}>
-                {absences.map((absence) => (
-                  <li key={absence.id} className="absence-item">
-                    <div>
-                      <strong>
-                        {formatDayLabel(absence.from)} → back{' '}
-                        {formatDayLabel(absence.until)}
-                      </strong>
-                      <AbsenceWeekPreview
-                        absence={absence}
-                        weeks={previewWeeks}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      className="danger-button"
-                      aria-label={`Remove holiday for ${person.name}`}
-                      onClick={() => onRemoveAbsence(person.id, absence.id)}
-                    >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <div className="week-impact" aria-label={`${person.name} week impact`}>
-              {previewWeeks.map((upcomingWeekKey) => {
-                const days = awayDaysInWeek(away, person.id, upcomingWeekKey)
-                const skipped = isAway(away, person.id, upcomingWeekKey)
-                return (
-                  <span
-                    key={upcomingWeekKey}
-                    className={`week-impact-chip${skipped ? ' is-away' : ''}`}
-                  >
-                    {formatWeekLabel(upcomingWeekKey)}: {days}d
-                    {skipped ? ' · no chores' : ' · chores'}
-                  </span>
-                )
-              })}
-            </div>
-          </section>
-        )
-      })}
+      <section aria-labelledby="saved-holidays-heading">
+        <h3 id="saved-holidays-heading">Saved holidays</h3>
+        {allHolidays.length === 0 ? (
+          <p className="empty-state">No holidays yet.</p>
+        ) : (
+          <ul className="absence-list">
+            {allHolidays.map(({ person, absence, weeks }) => (
+              <li key={`${person.id}-${absence.id}`} className="absence-item">
+                <div>
+                  <p className="absence-item__eyebrow">{person.name}</p>
+                  <strong>{absence.name}</strong>
+                  <p className="field-help">
+                    {formatDayLabel(absence.from)} → back{' '}
+                    {formatDayLabel(absence.until)}
+                  </p>
+                  <ul className="holiday-week-results">
+                    {weeks.map((entry) => (
+                      <li key={entry.weekKey}>
+                        {formatWeekLabel(entry.weekKey)}:{' '}
+                        {entry.skipsChores ? 'no chores' : 'still has chores'}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <button
+                  type="button"
+                  className="danger-button"
+                  aria-label={`Remove ${absence.name} for ${person.name}`}
+                  onClick={() => onRemoveAbsence(person.id, absence.id)}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </section>
-  )
-}
-
-function AbsenceWeekPreview({
-  absence,
-  weeks,
-}: {
-  absence: Absence
-  weeks: string[]
-}) {
-  const impacted = weeks
-    .map((weekKey) => {
-      const days = awayDaysInWeek(
-        { preview: [absence] },
-        'preview',
-        weekKey,
-      )
-      return { weekKey, days, skipped: days >= AWAY_DAY_THRESHOLD }
-    })
-    .filter((entry) => entry.days > 0)
-
-  if (impacted.length === 0) {
-    const startWeek = toWeekKey(new Date(`${absence.from}T00:00:00Z`))
-    const nearby = listUpcomingWeekKeys(addWeeks(startWeek, -1), 4)
-    const fallback = nearby
-      .map((weekKey) => {
-        const days = awayDaysInWeek({ preview: [absence] }, 'preview', weekKey)
-        return { weekKey, days, skipped: days >= AWAY_DAY_THRESHOLD }
-      })
-      .filter((entry) => entry.days > 0)
-
-    if (fallback.length === 0) {
-      return <p className="field-help">No overlap with nearby weeks.</p>
-    }
-
-    return (
-      <p className="field-help">
-        {fallback
-          .map(
-            (entry) =>
-              `${formatWeekLabel(entry.weekKey)}: ${entry.days} day${entry.days === 1 ? '' : 's'}${entry.skipped ? ' (skip chores)' : ' (still chores)'}`,
-          )
-          .join(' · ')}
-      </p>
-    )
-  }
-
-  return (
-    <p className="field-help">
-      {impacted
-        .map(
-          (entry) =>
-            `${formatWeekLabel(entry.weekKey)}: ${entry.days} day${entry.days === 1 ? '' : 's'}${entry.skipped ? ' (skip chores)' : ' (still chores)'}`,
-        )
-        .join(' · ')}
-    </p>
   )
 }
 

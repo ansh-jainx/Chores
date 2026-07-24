@@ -32,6 +32,8 @@ export interface Household {
  */
 export interface Absence {
   id: string;
+  /** Display name for the trip, e.g. "Summer holiday" */
+  name: string;
   /** Inclusive first day away, YYYY-MM-DD */
   from: string;
   /** Exclusive first day back home, YYYY-MM-DD */

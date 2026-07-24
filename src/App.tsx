@@ -11,7 +11,7 @@ type ActiveTab = 'week' | 'away' | 'setup'
 
 const tabs: Array<{ id: ActiveTab; label: string; hint: string }> = [
   { id: 'week', label: 'This week', hint: 'Your chores' },
-  { id: 'away', label: 'Away', hint: 'Mark holidays' },
+  { id: 'away', label: 'Holidays', hint: 'Plan trips' },
   { id: 'setup', label: 'Setup', hint: 'Edit flat details' },
 ]
 

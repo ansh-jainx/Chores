@@ -52,7 +52,7 @@ const storedState: PersistedState = {
     biweeklyParity: 1,
   },
   away: {
-    sam: [{ id: '2026-W30', from: '2026-07-20', until: '2026-07-27' }],
+    sam: [{ id: '2026-W30', name: 'Holiday', from: '2026-07-20', until: '2026-07-27' }],
   },
 }
 
@@ -133,7 +133,7 @@ describe('useHousehold', () => {
 
     act(() => {
       result.current.setAway({
-        alex: [{ id: 'alex-trip', from: '2026-07-27', until: '2026-08-03' }],
+        alex: [{ id: 'alex-trip', name: 'Holiday', from: '2026-07-27', until: '2026-08-03' }],
       })
     })
 
@@ -141,7 +141,7 @@ describe('useHousehold', () => {
       expect(readStoredState()).toEqual({
         household: defaultHousehold,
         away: {
-          alex: [{ id: 'alex-trip', from: '2026-07-27', until: '2026-08-03' }],
+          alex: [{ id: 'alex-trip', name: 'Holiday', from: '2026-07-27', until: '2026-08-03' }],
         },
       }),
     )

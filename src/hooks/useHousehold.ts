@@ -11,7 +11,12 @@ export interface UseHouseholdResult {
   ready: boolean;
   setHousehold: Dispatch<SetStateAction<Household>>;
   setAway: Dispatch<SetStateAction<AwayMap>>;
-  addAbsence: (personId: string, from: string, until: string) => void;
+  addAbsence: (
+    personId: string,
+    name: string,
+    from: string,
+    until: string,
+  ) => void;
   removeAbsence: (personId: string, absenceId: string) => void;
   resetToDefaults: () => Promise<void>;
   copyShareLink: () => Promise<string>;
@@ -159,32 +164,37 @@ export function useHousehold(): UseHouseholdResult {
     });
   }, []);
 
-  const addAbsence = useCallback((personId: string, from: string, until: string) => {
-    if (until <= from) {
-      return;
-    }
-
-    setState((currentState) => {
-      if (currentState === null) {
-        return currentState;
+  const addAbsence = useCallback(
+    (personId: string, name: string, from: string, until: string) => {
+      const trimmedName = name.trim() || 'Holiday'
+      if (until <= from) {
+        return
       }
 
-      const absence = {
-        id: `${personId}-${from}-${until}-${Math.random().toString(36).slice(2, 7)}`,
-        from,
-        until,
-      };
-      const existing = currentState.away[personId] ?? [];
+      setState((currentState) => {
+        if (currentState === null) {
+          return currentState
+        }
 
-      return {
-        household: currentState.household,
-        away: {
-          ...currentState.away,
-          [personId]: [...existing, absence],
-        },
-      };
-    });
-  }, []);
+        const absence = {
+          id: `${personId}-${from}-${until}-${Math.random().toString(36).slice(2, 7)}`,
+          name: trimmedName,
+          from,
+          until,
+        }
+        const existing = currentState.away[personId] ?? []
+
+        return {
+          household: currentState.household,
+          away: {
+            ...currentState.away,
+            [personId]: [...existing, absence],
+          },
+        }
+      })
+    },
+    [],
+  )
 
   const removeAbsence = useCallback((personId: string, absenceId: string) => {
     setState((currentState) => {

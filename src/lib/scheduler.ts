@@ -189,6 +189,7 @@ export function scheduleWeek(
 export function absenceFromWeekKey(weekKey: string, id = weekKey): Absence {
   return {
     id,
+    name: 'Holiday',
     from: weekStartDate(weekKey),
     until: weekEndExclusiveDate(weekKey),
   }

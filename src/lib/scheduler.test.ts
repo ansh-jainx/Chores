@@ -14,7 +14,7 @@ describe('scheduler helpers', () => {
     // 2026-W30 is Mon 20 Jul – Sun 26 Jul.
     // Away Thu 23 Jul → back Thu 30 Jul ⇒ W30: 4 days, W31: 3 days.
     const away: AwayMap = {
-      ben: [{ id: 'trip', from: '2026-07-23', until: '2026-07-30' }],
+      ben: [{ id: 'trip', name: 'Holiday', from: '2026-07-23', until: '2026-07-30' }],
     };
     const household = householdWithChores(['dishes']);
 
@@ -116,7 +116,7 @@ describe('scheduleWeek', () => {
     // 2026-W01 = Mon 29 Dec 2025 – Sun 4 Jan 2026
     const schedule = scheduleWeek(
       household,
-      { ben: [{ id: 'ben-away', from: '2025-12-29', until: '2026-01-05' }] },
+      { ben: [{ id: 'ben-away', name: 'Holiday', from: '2025-12-29', until: '2026-01-05' }] },
       '2026-W01',
     );
 
@@ -133,9 +133,9 @@ describe('scheduleWeek', () => {
   it('returns an empty schedule instead of throwing when everyone is away', () => {
     const household = householdWithChores(['dishes', 'bins']);
     const away: AwayMap = {
-      ada: [{ id: 'a', from: '2025-12-29', until: '2026-01-05' }],
-      ben: [{ id: 'b', from: '2025-12-29', until: '2026-01-05' }],
-      cy: [{ id: 'c', from: '2025-12-29', until: '2026-01-05' }],
+      ada: [{ id: 'a', name: 'Holiday', from: '2025-12-29', until: '2026-01-05' }],
+      ben: [{ id: 'b', name: 'Holiday', from: '2025-12-29', until: '2026-01-05' }],
+      cy: [{ id: 'c', name: 'Holiday', from: '2025-12-29', until: '2026-01-05' }],
     };
 
     expect(scheduleWeek(household, away, '2026-W01')).toEqual({
@@ -182,8 +182,8 @@ describe('scheduleWeek', () => {
     };
     // 2026-W02 = Mon 5 Jan – Sun 11 Jan 2026
     const away: AwayMap = {
-      'up-a': [{ id: 'ua', from: '2026-01-05', until: '2026-01-12' }],
-      'up-b': [{ id: 'ub', from: '2026-01-05', until: '2026-01-12' }],
+      'up-a': [{ id: 'ua', name: 'Holiday', from: '2026-01-05', until: '2026-01-12' }],
+      'up-b': [{ id: 'ub', name: 'Holiday', from: '2026-01-05', until: '2026-01-12' }],
     };
 
     const assignments = scheduleWeek(household, away, '2026-W02').assignments;
@@ -238,7 +238,7 @@ describe('scheduleWeek', () => {
   it('is deterministic for the same week, people order, chores order, and away map', () => {
     const household = householdWithChores(['dishes', 'bins', 'vacuum']);
     const away: AwayMap = {
-      ada: [{ id: 'ada-away', from: '2026-07-20', until: '2026-07-27' }],
+      ada: [{ id: 'ada-away', name: 'Holiday', from: '2026-07-20', until: '2026-07-27' }],
     };
 
     expect(scheduleWeek(household, away, '2026-W30')).toEqual(

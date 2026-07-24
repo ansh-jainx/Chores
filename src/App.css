@@ -289,9 +289,7 @@
 
 .my-chore {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 6px 12px;
-  align-items: center;
+  gap: 6px;
   padding: 16px 18px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.86);
@@ -303,48 +301,6 @@
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.1;
-}
-
-.my-chore__effort,
-.chore-pill__effort {
-  justify-self: end;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.my-chore--heavy {
-  border-color: rgba(15, 118, 110, 0.35);
-  background: rgba(204, 251, 241, 0.95);
-}
-
-.my-chore--heavy .my-chore__effort {
-  background: #0f766e;
-  color: #ecfeff;
-}
-
-.my-chore--medium .my-chore__effort,
-.chore-pill--medium .chore-pill__effort {
-  background: rgba(15, 118, 110, 0.14);
-  color: var(--color-accent-strong);
-}
-
-.my-chore--light .my-chore__effort,
-.chore-pill--light .chore-pill__effort {
-  background: rgba(15, 23, 42, 0.08);
-  color: var(--color-text-muted);
-}
-
-.chore-pill--heavy {
-  background: rgba(153, 246, 228, 0.78);
-}
-
-.chore-pill--heavy .chore-pill__effort {
-  background: #0f766e;
-  color: #ecfeff;
 }
 
 .rest-heading {
@@ -498,12 +454,78 @@
   color: var(--color-accent-strong);
 }
 
-.absence-form {
+.holiday-form {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
-  gap: 10px;
-  align-items: end;
-  margin-bottom: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.holiday-form .primary-button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.holiday-preview,
+.holiday-banner {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  background: rgba(240, 253, 250, 0.8);
+}
+
+.holiday-banner {
+  background: linear-gradient(
+    135deg,
+    rgba(204, 251, 241, 0.92),
+    rgba(255, 255, 255, 0.88)
+  );
+}
+
+.holiday-banner__label,
+.absence-item__eyebrow {
+  margin: 0 0 6px;
+  color: var(--color-accent-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.holiday-preview h3,
+#saved-holidays-heading {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.holiday-preview ul,
+.holiday-banner ul,
+.holiday-week-results {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.holiday-preview li,
+.holiday-week-results li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  justify-content: space-between;
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.holiday-banner li {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .absence-list {
@@ -530,7 +552,7 @@
 }
 
 @media (max-width: 720px) {
-  .absence-form {
+  .holiday-form {
     grid-template-columns: 1fr;
   }
 }
