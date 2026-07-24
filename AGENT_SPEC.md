@@ -1,6 +1,6 @@
 # Flat Chores PWA — agent contract
 
-Repo: `ansh-jainx/chores` → GitHub Pages at `/chores/` base.
+Repo: `ansh-jainx/Chores` → GitHub Pages at `/Chores/` base.
 
 ## Types (`src/types.ts`) — DO NOT CHANGE without coordinating
 
