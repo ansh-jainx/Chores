@@ -938,6 +938,141 @@
   }
 }
 
+.print-only {
+  display: none;
+}
+
+.print-calendar {
+  color: #111827;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.print-calendar__header {
+  margin-bottom: 14px;
+}
+
+.print-calendar__eyebrow {
+  margin: 0;
+  color: #374151;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.print-calendar h1 {
+  margin: 2px 0 4px;
+  font-size: 1.8rem;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.print-calendar__meta,
+.print-calendar__footer,
+.print-calendar__empty {
+  margin: 0;
+  color: #4b5563;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+}
+
+.print-calendar__footer {
+  margin-top: 12px;
+}
+
+.print-calendar__table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+}
+
+.print-calendar__table th,
+.print-calendar__table td {
+  border: 1px solid #d1d5db;
+  padding: 7px 8px;
+  vertical-align: top;
+  text-align: left;
+  word-wrap: break-word;
+}
+
+.print-calendar__table thead th {
+  background: #f3f4f6;
+  font-weight: 800;
+}
+
+.print-calendar__table tbody th {
+  width: 8.5rem;
+  background: #fafafa;
+  font-weight: 700;
+}
+
+.print-calendar__week-label,
+.print-calendar__week-key {
+  display: block;
+}
+
+.print-calendar__week-key {
+  margin-top: 2px;
+  color: #6b7280;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.print-calendar__table ul {
+  margin: 0;
+  padding-left: 1.1em;
+}
+
+.print-calendar__table li + li {
+  margin-top: 2px;
+}
+
+.print-calendar__table .is-empty {
+  color: #9ca3af;
+  text-align: center;
+}
+
+.print-calendar__table .is-holiday {
+  color: #374151;
+  font-style: italic;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #111827 !important;
+  }
+
+  body::before,
+  body::after {
+    display: none !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-calendar__table thead th,
+  .print-calendar__table tbody th {
+    background: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 @media (max-width: 520px) {
   .app-header {
     flex-direction: column;
