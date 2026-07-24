@@ -40,6 +40,8 @@ function App() {
     setAway,
     addAbsence,
     removeAbsence,
+    completions,
+    toggleCompletion,
     resetToDefaults,
     copyShareLink,
   } = useHousehold()
@@ -115,6 +117,7 @@ function App() {
         <SetupPanel
           household={household}
           away={away}
+          completions={completions}
           onChange={setHousehold}
           onAwayChange={setAway}
           onReset={resetToDefaults}
@@ -127,8 +130,10 @@ function App() {
       <ThisWeek
         household={household}
         away={away}
+        completions={completions}
         weekKey={weekKey}
         onWeekChange={setWeekKey}
+        onToggleCompletion={toggleCompletion}
       />
     )
   }

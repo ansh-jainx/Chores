@@ -3,6 +3,7 @@ import type {
   Absence,
   Assignment,
   AwayMap,
+  CompletionMap,
   Household,
   Person,
   WeekSchedule,
@@ -13,8 +14,10 @@ import { addWeeks, currentWeekKey, formatWeekLabel } from '../lib/weeks'
 export interface ThisWeekProps {
   household: Household
   away: AwayMap
+  completions: CompletionMap
   weekKey: string
   onWeekChange?: (weekKey: string) => void
+  onToggleCompletion: (weekKey: string, choreId: string) => void
 }
 
 const VIEWER_STORAGE_KEY = 'flat-chores-viewer-v1'
@@ -111,8 +114,10 @@ function holidayBadgeLabel(away: AwayMap, personId: string, weekKey: string) {
 export function ThisWeek({
   household,
   away,
+  completions,
   weekKey,
   onWeekChange,
+  onToggleCompletion,
 }: ThisWeekProps) {
   const [viewerId, setViewerId] = useState(() =>
     readStoredViewerId(household.people),
@@ -175,6 +180,8 @@ export function ThisWeek({
       person,
       label: `${person.name} · ${holidayBadgeLabel(away, person.id, weekKey)}`,
     }))
+
+  const doneThisWeek = new Set(completions[weekKey] ?? [])
 
   const changeWeek = (newWeekKey: string) => {
     onWeekChange?.(newWeekKey)
@@ -269,16 +276,34 @@ export function ThisWeek({
                 </p>
               ) : (
                 <ul className="my-week__list" aria-label="Your chores this week">
-                  {myAssignments.map((assignment) => (
-                    <li key={assignment.choreId} className="my-chore">
-                      <span className="my-chore__name">{assignment.choreName}</span>
-                      {assignment.warning ? (
-                        <span className="warning" role="note">
-                          {assignment.warning}
-                        </span>
-                      ) : null}
-                    </li>
-                  ))}
+                  {myAssignments.map((assignment) => {
+                    const done = doneThisWeek.has(assignment.choreId)
+                    return (
+                      <li key={assignment.choreId}>
+                        <button
+                          type="button"
+                          className={`my-chore checklist-item${done ? ' is-done' : ''}`}
+                          aria-pressed={done}
+                          aria-label={`${done ? 'Mark not done' : 'Mark done'}: ${assignment.choreName}`}
+                          onClick={() =>
+                            onToggleCompletion(weekKey, assignment.choreId)
+                          }
+                        >
+                          <span className="checklist-box" aria-hidden="true">
+                            {done ? '✓' : ''}
+                          </span>
+                          <span className="my-chore__name">
+                            {assignment.choreName}
+                          </span>
+                          {assignment.warning ? (
+                            <span className="warning" role="note">
+                              {assignment.warning}
+                            </span>
+                          ) : null}
+                        </button>
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
             </section>
@@ -315,16 +340,32 @@ export function ThisWeek({
                     <p>No chores assigned this week.</p>
                   ) : (
                     <ul aria-label={`${person.name}'s chores`}>
-                      {assignments.map((assignment) => (
-                        <li key={assignment.choreId} className="chore-pill">
-                          <span>{assignment.choreName}</span>
-                          {assignment.warning ? (
-                            <span className="warning" role="note">
-                              {assignment.warning}
-                            </span>
-                          ) : null}
-                        </li>
-                      ))}
+                      {assignments.map((assignment) => {
+                        const done = doneThisWeek.has(assignment.choreId)
+                        return (
+                          <li key={assignment.choreId}>
+                            <button
+                              type="button"
+                              className={`chore-pill checklist-item${done ? ' is-done' : ''}`}
+                              aria-pressed={done}
+                              aria-label={`${done ? 'Mark not done' : 'Mark done'}: ${assignment.choreName}`}
+                              onClick={() =>
+                                onToggleCompletion(weekKey, assignment.choreId)
+                              }
+                            >
+                              <span className="checklist-box" aria-hidden="true">
+                                {done ? '✓' : ''}
+                              </span>
+                              <span>{assignment.choreName}</span>
+                              {assignment.warning ? (
+                                <span className="warning" role="note">
+                                  {assignment.warning}
+                                </span>
+                              ) : null}
+                            </button>
+                          </li>
+                        )
+                      })}
                     </ul>
                   )}
                 </section>

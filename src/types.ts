@@ -60,7 +60,12 @@ export interface WeekSchedule {
   assignments: Assignment[];
 }
 
+/** weekKey -> completed choreIds for that week */
+export type CompletionMap = Record<string, string[]>;
+
 export interface PersistedState {
   household: Household;
   away: AwayMap;
+  /** Checklist ticks, keyed by ISO week */
+  completions: CompletionMap;
 }

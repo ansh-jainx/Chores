@@ -11,6 +11,7 @@ const state: PersistedState = {
   away: {
     alex: [{ id: '2026-W30', name: 'Holiday', from: '2026-07-20', until: '2026-07-27' }],
   },
+  completions: {},
 }
 
 describe('parsePersistedState', () => {
@@ -25,6 +26,38 @@ describe('parsePersistedState', () => {
         away: { alex: ['2026-W30'] },
       }),
     ).toEqual(state)
+  })
+
+  it('defaults missing completions to an empty map', () => {
+    expect(
+      parsePersistedState({
+        household: state.household,
+        away: state.away,
+      }),
+    ).toEqual(state)
+  })
+
+  it('parses checklist completions by week', () => {
+    expect(
+      parsePersistedState({
+        household: state.household,
+        away: state.away,
+        completions: { '2026-W30': ['kitchen', 'hallway'] },
+      }),
+    ).toEqual({
+      ...state,
+      completions: { '2026-W30': ['kitchen', 'hallway'] },
+    })
+  })
+
+  it('rejects invalid completion week keys', () => {
+    expect(
+      parsePersistedState({
+        household: state.household,
+        away: state.away,
+        completions: { notAWeek: ['kitchen'] },
+      }),
+    ).toBeNull()
   })
 
   it('rejects objects with unexpected prototypes', () => {

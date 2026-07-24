@@ -4,6 +4,7 @@ import type {
   BathZone,
   Cadence,
   Chore,
+  CompletionMap,
   Effort,
   Household,
   PersistedState,
@@ -262,6 +263,46 @@ function parseAway(value: unknown): AwayMap | null {
   return away
 }
 
+function parseCompletions(value: unknown): CompletionMap | null {
+  if (value === undefined) {
+    return {}
+  }
+
+  if (!isPlainObject(value) || hasUnsafeOwnKey(value)) {
+    return null
+  }
+
+  const completions: CompletionMap = {}
+
+  for (const [weekKey, choreIdsValue] of Object.entries(value)) {
+    if (UNSAFE_KEYS.has(weekKey) || !isWeekKey(weekKey)) {
+      return null
+    }
+
+    if (!isPlainArray(choreIdsValue) || hasUnsafeOwnKey(choreIdsValue)) {
+      return null
+    }
+
+    const choreIds: string[] = []
+
+    for (let index = 0; index < choreIdsValue.length; index += 1) {
+      if (!hasOwn(choreIdsValue, String(index))) {
+        return null
+      }
+
+      const choreId = choreIdsValue[index]
+      if (typeof choreId !== 'string' || UNSAFE_KEYS.has(choreId)) {
+        return null
+      }
+      choreIds.push(choreId)
+    }
+
+    completions[weekKey] = choreIds
+  }
+
+  return completions
+}
+
 export function parsePersistedState(value: unknown): PersistedState | null {
   if (!isPlainObject(value) || hasUnsafeOwnKey(value)) {
     return null
@@ -273,13 +314,17 @@ export function parsePersistedState(value: unknown): PersistedState | null {
 
   const household = parseHousehold(value.household)
   const away = parseAway(value.away)
+  const completions = parseCompletions(
+    hasOwn(value, 'completions') ? value.completions : undefined,
+  )
 
-  if (household === null || away === null) {
+  if (household === null || away === null || completions === null) {
     return null
   }
 
   return {
     household,
     away,
+    completions,
   }
 }

@@ -5,6 +5,7 @@ import type {
   BathZone,
   Cadence,
   Chore,
+  CompletionMap,
   Household,
   Person,
 } from '../types'
@@ -12,6 +13,7 @@ import type {
 interface SetupPanelProps {
   household: Household
   away: AwayMap
+  completions: CompletionMap
   onChange: (household: Household) => void
   onAwayChange: (away: AwayMap) => void
   onReset: () => void
@@ -57,6 +59,7 @@ const makeUniqueId = (
 function SetupPanel({
   household,
   away,
+  completions,
   onChange,
   onAwayChange,
   onReset,
@@ -160,7 +163,7 @@ function SetupPanel({
       return ''
     }
 
-    const shareHash = encodeShareHash({ household, away })
+    const shareHash = encodeShareHash({ household, away, completions })
     const url = new URL(window.location.href)
     url.hash = shareHash.startsWith('#') ? shareHash : `#${shareHash}`
 

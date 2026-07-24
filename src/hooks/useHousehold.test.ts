@@ -68,6 +68,7 @@ const storedState: PersistedState = {
       },
     ],
   },
+  completions: {},
 }
 
 const mockedFetchDefaultHousehold = vi.mocked(fetchDefaultHousehold)
@@ -144,10 +145,12 @@ describe('useHousehold', () => {
 
     expect(result.current.household).toEqual(defaultHousehold)
     expect(result.current.away).toEqual({})
+    expect(result.current.completions).toEqual({})
     expect(localStorage.getItem(STORAGE_KEY)).toEqual(
       JSON.stringify({
         household: defaultHousehold,
         away: {},
+        completions: {},
       }),
     )
 
@@ -177,7 +180,36 @@ describe('useHousehold', () => {
             },
           ],
         },
+        completions: {},
       }),
     )
+  })
+
+  it('toggles chore completions for a week and persists them', async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState))
+
+    const { result } = renderHook(() => useHousehold())
+
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    act(() => {
+      result.current.toggleCompletion('2026-W30', 'kitchen')
+    })
+
+    await waitFor(() =>
+      expect(result.current.completions).toEqual({
+        '2026-W30': ['kitchen'],
+      }),
+    )
+    expect(readStoredState()?.completions).toEqual({
+      '2026-W30': ['kitchen'],
+    })
+
+    act(() => {
+      result.current.toggleCompletion('2026-W30', 'kitchen')
+    })
+
+    await waitFor(() => expect(result.current.completions).toEqual({}))
+    expect(readStoredState()?.completions).toEqual({})
   })
 })

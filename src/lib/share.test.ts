@@ -34,6 +34,7 @@ const state: PersistedState = {
   away: {
     sam: [{ id: '2026-W30', name: 'Holiday', from: '2026-07-20', until: '2026-07-27' }],
   },
+  completions: {},
 }
 
 function encodeRawShareHash(value: unknown): string {
