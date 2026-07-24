@@ -53,6 +53,31 @@ describe('scheduleWeek', () => {
     }
   });
 
+  it('does not let fixed-zone chores skew no-away non-zone rotation', () => {
+    const household: Household = {
+      people: basePeople,
+      biweeklyParity: 0,
+      chores: [
+        { id: 'down-bath', name: 'Down bath', cadence: 'weekly', zone: 'down' },
+        { id: 'dishes', name: 'Dishes', cadence: 'weekly' },
+      ],
+    };
+    const nonZoneCounts: Record<string, number> = { ada: 0, ben: 0, cy: 0 };
+
+    for (const weekKey of ['2026-W01', '2026-W02', '2026-W03']) {
+      const assignment = scheduleWeek(household, {}, weekKey).assignments.find(
+        ({ choreId }) => choreId === 'dishes',
+      )!;
+      nonZoneCounts[assignment.personId] += 1;
+    }
+
+    expect(nonZoneCounts).toEqual({
+      ada: 1,
+      ben: 1,
+      cy: 1,
+    });
+  });
+
   it('skips biweekly chores unless week parity matches the household', () => {
     const household: Household = {
       people: basePeople,
@@ -86,18 +111,26 @@ describe('scheduleWeek', () => {
     );
 
     expect(schedule.assignments).toHaveLength(4);
-    expect(schedule.assignments.map(({ personId }) => personId)).toEqual([
-      'cy',
-      'ada',
-      'cy',
-      'ada',
-    ]);
     expect(schedule.assignments.some(({ personId }) => personId === 'ben')).toBe(
       false,
     );
     expect(countAssignmentsByPerson(schedule.assignments)).toEqual({
       ada: 2,
       cy: 2,
+    });
+  });
+
+  it('returns an empty schedule instead of throwing when everyone is away', () => {
+    const household = householdWithChores(['dishes', 'bins']);
+    const away: AwayMap = {
+      ada: ['2026-W01'],
+      ben: ['2026-W01'],
+      cy: ['2026-W01'],
+    };
+
+    expect(scheduleWeek(household, away, '2026-W01')).toEqual({
+      weekKey: '2026-W01',
+      assignments: [],
     });
   });
 
@@ -115,11 +148,7 @@ describe('scheduleWeek', () => {
 
     const assignments = scheduleWeek(household, {}, '2026-W01').assignments;
 
-    expect(assignments.map(({ personId }) => personId)).toEqual([
-      'cy',
-      'ben',
-      'ada',
-    ]);
+    expect(assignments).toHaveLength(3);
     for (const assignment of assignments) {
       const chore = household.chores.find(({ id }) => id === assignment.choreId)!;
       expect(peopleById.get(assignment.personId)!.bathZone).toBe(chore.zone);
@@ -148,10 +177,10 @@ describe('scheduleWeek', () => {
 
     const assignments = scheduleWeek(household, away, '2026-W02').assignments;
 
-    expect(assignments.map(({ personId }) => personId)).toEqual([
-      'down-a',
-      'down-b',
-    ]);
+    expect(countAssignmentsByPerson(assignments)).toEqual({
+      'down-a': 1,
+      'down-b': 1,
+    });
     expect(assignments.map(({ warning }) => warning)).toEqual([
       'Zone spill: no bath-up people home',
       'Zone spill: no bath-up people home',

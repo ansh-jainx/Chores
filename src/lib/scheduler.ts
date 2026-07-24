@@ -31,10 +31,18 @@ export function scheduleWeek(
   const { week: weekNumber } = parseWeekKey(weekKey);
   const rotationOrdinal = weekOrdinal(weekKey);
   const presentPeople = peoplePresent(household, away, weekKey);
+  const hasAwayPeople = presentPeople.length < household.people.length;
   const loadByPerson: Map<string, number> = new Map(
     presentPeople.map((person) => [person.id, 0] as const),
   );
   const assignments: Assignment[] = [];
+
+  if (presentPeople.length === 0) {
+    return {
+      weekKey,
+      assignments,
+    };
+  }
 
   household.chores.forEach((chore, choreIndex) => {
     if (
@@ -42,10 +50,6 @@ export function scheduleWeek(
       weekNumber % 2 !== household.biweeklyParity
     ) {
       return;
-    }
-
-    if (presentPeople.length === 0) {
-      throw new Error(`Cannot schedule due chores for ${weekKey}: nobody is home`);
     }
 
     let candidates = chore.zone
@@ -58,11 +62,11 @@ export function scheduleWeek(
       warning = `Zone spill: no bath-${chore.zone} people home`;
     }
 
-    const person = pickLightestCyclicPerson(
-      candidates,
-      loadByPerson,
-      choreIndex + rotationOrdinal,
-    );
+    const rotationSeed = choreIndex + rotationOrdinal;
+    const shouldPreferLightestLoad = hasAwayPeople || chore.zone !== undefined;
+    const person = shouldPreferLightestLoad
+      ? pickLightestCyclicPerson(candidates, loadByPerson, rotationSeed)
+      : pickCyclicPerson(candidates, rotationSeed);
     loadByPerson.set(person.id, (loadByPerson.get(person.id) ?? 0) + 1);
 
     assignments.push({
@@ -78,6 +82,14 @@ export function scheduleWeek(
     weekKey,
     assignments,
   };
+}
+
+function pickCyclicPerson(candidates: Person[], rotationSeed: number): Person {
+  if (candidates.length === 0) {
+    throw new Error('Cannot choose from an empty candidate list');
+  }
+
+  return candidates[positiveModulo(rotationSeed, candidates.length)];
 }
 
 function pickLightestCyclicPerson(
