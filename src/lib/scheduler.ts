@@ -42,6 +42,9 @@ const SECOND_CHORE_PREFERENCE: Record<string, number> = {
   towels: 60,
 }
 
+/** Light biweekly chores that should rotate one-per-person across a 6-week cycle. */
+const LIGHT_SIDE_CHORE_IDS = new Set(['cardboard', 'towels'])
+
 export function choreEffort(chore: Chore): Effort {
   return chore.effort ?? 'medium'
 }
@@ -145,9 +148,9 @@ export function scheduleWeek(
       return left.choreIndex - right.choreIndex
     })
 
-  // Rotate who sits out. With a full 6-person flat we aim for two free people
-  // (stacking a light chore like cardboard), since any assigned chore — including
-  // mid-week cardboard — counts as a chore week, not a free week.
+  // One free person when people outnumber chores (6 people / 5 chores → 1 free).
+  // Free weeks rotate; cardboard/towels also rotate so each person gets one
+  // light-side week across a 6-week cycle — without stacking extras on purpose.
   const freePersonIds = selectFreePersonIds(
     presentPeople,
     dueChores.map(({ chore }) => chore),
@@ -157,7 +160,13 @@ export function scheduleWeek(
     (person) => !freePersonIds.has(person.id),
   )
 
-  for (const { chore, choreIndex } of dueChores) {
+  // Reserve the light-side chore (cardboard or towels) first so its 6-week
+  // rotation is not whatever seat is left after heavies are filled.
+  const lightDue = dueChores.filter(({ chore }) => isLightSideChore(chore))
+  const remainingDue = dueChores.filter(({ chore }) => !isLightSideChore(chore))
+  const orderedDue = [...lightDue, ...remainingDue]
+
+  for (const { chore, choreIndex } of orderedDue) {
     const effort = choreEffort(chore)
     const warnings: string[] = []
     let candidates = candidatesForChore(
@@ -186,8 +195,13 @@ export function scheduleWeek(
       (person) => (choreCountByPerson.get(person.id) ?? 0) === minChores,
     )
 
-    const rotationSeed = choreIndex + rotationOrdinal
-    const person = pickCyclicPerson(candidates, rotationSeed)
+    const person = isLightSideChore(chore)
+      ? pickPreferredPerson(
+          candidates,
+          presentPeople,
+          rotationOrdinal + 1,
+        )
+      : pickCyclicPerson(candidates, choreIndex + rotationOrdinal)
 
     heavyCountByPerson.set(
       person.id,
@@ -253,9 +267,13 @@ function assignLaterScore(chore: Chore): number {
   return 90
 }
 
+function isLightSideChore(chore: Chore): boolean {
+  return LIGHT_SIDE_CHORE_IDS.has(chore.id) || /cardboard|towels/i.test(chore.name)
+}
+
 /**
- * How many people should sit out this week.
- * Full flat (6+ home): prefer 2 free weeks, stacking a light chore if needed.
+ * How many people sit out: natural spare seats only (no intentional stacking).
+ * 6 people / 5 chores → 1 free person.
  */
 function targetFreeCount(presentCount: number, choreCount: number): number {
   if (presentCount === 0) {
@@ -265,13 +283,7 @@ function targetFreeCount(presentCount: number, choreCount: number): number {
     return presentCount
   }
 
-  const naturalFree = Math.max(0, presentCount - choreCount)
-  const desiredFree = presentCount >= 6 ? Math.max(naturalFree, 2) : naturalFree
-  const minWorkers = Math.min(
-    presentCount,
-    Math.max(1, Math.ceil(choreCount / 2)),
-  )
-  return Math.min(desiredFree, presentCount - minWorkers)
+  return Math.max(0, presentCount - choreCount)
 }
 
 /**
@@ -367,6 +379,31 @@ function pickCyclicPerson(candidates: Person[], rotationSeed: number): Person {
   }
 
   return candidates[positiveModulo(rotationSeed, candidates.length)]
+}
+
+/** Prefer a rotating household seat, then walk until a candidate matches. */
+function pickPreferredPerson(
+  candidates: Person[],
+  presentPeople: Person[],
+  preferredIndex: number,
+): Person {
+  if (candidates.length === 0) {
+    throw new Error('Cannot choose from an empty candidate list')
+  }
+  if (presentPeople.length === 0) {
+    return candidates[0]
+  }
+
+  for (let offset = 0; offset < presentPeople.length; offset += 1) {
+    const preferred =
+      presentPeople[positiveModulo(preferredIndex + offset, presentPeople.length)]
+    const match = candidates.find((person) => person.id === preferred.id)
+    if (match) {
+      return match
+    }
+  }
+
+  return pickCyclicPerson(candidates, preferredIndex)
 }
 
 function positiveModulo(value: number, divisor: number): number {
