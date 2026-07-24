@@ -13,7 +13,7 @@ export const FALLBACK_HOUSEHOLD: Household = {
     { id: "bath-up", name: "Bath up", cadence: "weekly", zone: "up", effort: "heavy" },
     { id: "bath-down", name: "Bath down", cadence: "weekly", zone: "down", effort: "heavy" },
     { id: "kitchen", name: "Kitchen", cadence: "weekly", effort: "heavy" },
-    { id: "hallway", name: "Hallway", cadence: "weekly", effort: "heavy" },
+    { id: "hallway", name: "Hallway", cadence: "biweekly", effort: "heavy" },
     { id: "cardboard", name: "Cardboard", cadence: "biweekly", effort: "light" },
     { id: "pag", name: "P/A/G (pet / alu / glass)", cadence: "biweekly", effort: "medium" },
     { id: "towels", name: "Towels", cadence: "biweekly", effort: "medium" },

@@ -106,16 +106,24 @@ export function scheduleWeek(
     }
   }
 
+  const biweeklyPhases = new Map<string, number>()
+  household.chores
+    .filter((chore) => chore.cadence === 'biweekly')
+    .forEach((chore, index) => {
+      biweeklyPhases.set(chore.id, index % 2)
+    })
+
   const dueChores = household.chores
     .map((chore, choreIndex) => ({ chore, choreIndex }))
     .filter(({ chore }) => {
-      if (
-        chore.cadence === 'biweekly' &&
-        weekNumber % 2 !== household.biweeklyParity
-      ) {
-        return false
+      if (chore.cadence !== 'biweekly') {
+        return true
       }
-      return true
+
+      // Stagger biweekly chores across alternating weeks so they don't all pile up.
+      const phase = biweeklyPhases.get(chore.id) ?? 0
+      const targetParity = (phase + household.biweeklyParity) % 2
+      return weekNumber % 2 === targetParity
     })
     .sort((left, right) => {
       const effortDelta =

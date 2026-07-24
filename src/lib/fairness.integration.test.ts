@@ -63,12 +63,36 @@ describe('scheduleWeek fairness integration', () => {
       }
 
       expect([...heavyByPerson.values()].every((count) => count === 1)).toBe(true)
-      expect(heavyByPerson.size).toBe(
-        FALLBACK_HOUSEHOLD.chores.filter((chore) => chore.effort === 'heavy').length,
+      const heavyAssignments = schedule.assignments.filter(
+        (assignment) => assignment.effort === 'heavy',
       )
+      expect(heavyByPerson.size).toBe(heavyAssignments.length)
     }
   })
 
+  it('spreads biweekly chores across both week parities', () => {
+    const even = new Set(
+      scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, '2026-W30').assignments.map(
+        (assignment) => assignment.choreId,
+      ),
+    )
+    const odd = new Set(
+      scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, '2026-W31').assignments.map(
+        (assignment) => assignment.choreId,
+      ),
+    )
+    const biweeklyIds = FALLBACK_HOUSEHOLD.chores
+      .filter((chore) => chore.cadence === 'biweekly')
+      .map((chore) => chore.id)
+
+    const onEven = biweeklyIds.filter((id) => even.has(id))
+    const onOdd = biweeklyIds.filter((id) => odd.has(id))
+
+    expect(onEven.length).toBeGreaterThan(0)
+    expect(onOdd.length).toBeGreaterThan(0)
+    expect(onEven.length + onOdd.length).toBe(biweeklyIds.length)
+    expect(onEven.every((id) => !odd.has(id))).toBe(true)
+  })
   it('keeps weekly non-zone chore totals roughly even over a six-week window', () => {
     const countsByWeek = WEEK_KEYS.map((weekKey) => {
       const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)

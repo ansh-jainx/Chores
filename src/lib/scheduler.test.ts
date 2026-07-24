@@ -87,23 +87,44 @@ describe('scheduleWeek', () => {
     });
   });
 
-  it('skips biweekly chores unless week parity matches the household', () => {
+  it('staggers biweekly chores across alternating weeks', () => {
     const household: Household = {
       people: basePeople,
       biweeklyParity: 0,
       chores: [
         { id: 'dishes', name: 'Dishes', cadence: 'weekly' },
-        { id: 'fridge', name: 'Fridge', cadence: 'biweekly' },
+        { id: 'hallway', name: 'Hallway', cadence: 'biweekly' },
+        { id: 'cardboard', name: 'Cardboard', cadence: 'biweekly' },
+        { id: 'pag', name: 'P/A/G', cadence: 'biweekly' },
+        { id: 'towels', name: 'Towels', cadence: 'biweekly' },
       ],
     };
 
-    expect(scheduleWeek(household, {}, '2026-W30').assignments.map(({ choreId }) => choreId)).toEqual([
-      'dishes',
-      'fridge',
-    ]);
-    expect(scheduleWeek(household, {}, '2026-W31').assignments.map(({ choreId }) => choreId)).toEqual([
-      'dishes',
-    ]);
+    expect(
+      scheduleWeek(household, {}, '2026-W30').assignments.map(({ choreId }) => choreId),
+    ).toEqual(['dishes', 'hallway', 'pag']);
+    expect(
+      scheduleWeek(household, {}, '2026-W31').assignments.map(({ choreId }) => choreId),
+    ).toEqual(['dishes', 'cardboard', 'towels']);
+  });
+
+  it('shifts the staggered biweekly set when household parity flips', () => {
+    const household: Household = {
+      people: basePeople,
+      biweeklyParity: 1,
+      chores: [
+        { id: 'dishes', name: 'Dishes', cadence: 'weekly' },
+        { id: 'fridge', name: 'Fridge', cadence: 'biweekly' },
+        { id: 'oven', name: 'Oven', cadence: 'biweekly' },
+      ],
+    };
+
+    expect(
+      scheduleWeek(household, {}, '2026-W30').assignments.map(({ choreId }) => choreId),
+    ).toEqual(['dishes', 'oven']);
+    expect(
+      scheduleWeek(household, {}, '2026-W31').assignments.map(({ choreId }) => choreId),
+    ).toEqual(['dishes', 'fridge']);
   });
 
   it('redistributes work away from absent people to present people with balanced loads', () => {
@@ -213,14 +234,15 @@ describe('scheduleWeek', () => {
         { id: 'bath-up', name: 'Bath up', cadence: 'weekly', zone: 'up', effort: 'heavy' },
         { id: 'bath-down', name: 'Bath down', cadence: 'weekly', zone: 'down', effort: 'heavy' },
         { id: 'kitchen', name: 'Kitchen', cadence: 'weekly', effort: 'heavy' },
-        { id: 'hallway', name: 'Hallway', cadence: 'weekly', effort: 'heavy' },
+        { id: 'hallway', name: 'Hallway', cadence: 'biweekly', effort: 'heavy' },
         { id: 'towels', name: 'Towels', cadence: 'biweekly', effort: 'medium' },
       ],
     };
 
     for (const weekKey of ['2026-W30', '2026-W31', '2026-W32']) {
       const heavyByPerson = new Map<string, number>();
-      for (const assignment of scheduleWeek(household, {}, weekKey).assignments) {
+      const schedule = scheduleWeek(household, {}, weekKey);
+      for (const assignment of schedule.assignments) {
         if (assignment.effort !== 'heavy') {
           continue;
         }
@@ -231,7 +253,8 @@ describe('scheduleWeek', () => {
       }
 
       expect([...heavyByPerson.values()].every((count) => count === 1)).toBe(true);
-      expect(heavyByPerson.size).toBe(4);
+      const expectedHeavies = weekKey === '2026-W31' ? 3 : 4;
+      expect(heavyByPerson.size).toBe(expectedHeavies);
     }
   });
 

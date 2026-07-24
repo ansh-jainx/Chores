@@ -22,7 +22,7 @@ export interface Chore {
 export interface Household {
   people: Person[];
   chores: Chore[];
-  /** Biweekly chores run when ISO week number % 2 === biweeklyParity */
+  /** Shifts which half of the staggered biweekly set runs on even/odd weeks. */
   biweeklyParity: 0 | 1;
 }
 

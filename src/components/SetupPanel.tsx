@@ -353,10 +353,10 @@ function SetupPanel({
       </section>
 
       <section className="setup-section" aria-labelledby="setup-parity-heading">
-        <h3 id="setup-parity-heading">Biweekly parity</h3>
+        <h3 id="setup-parity-heading">Biweekly stagger</h3>
         <div className="field-row field-row--compact">
           <label className="field field-toggle">
-            <span>Parity</span>
+            <span>Offset</span>
             <select
               value={household.biweeklyParity}
               onChange={(event) =>
@@ -370,7 +370,8 @@ function SetupPanel({
             </select>
           </label>
           <p className="field-help">
-            Biweekly chores run when the ISO week number has this parity.
+            Biweekly chores are split across alternating weeks. This offset flips
+            which half of the biweekly set runs on even vs odd weeks.
           </p>
         </div>
       </section>
