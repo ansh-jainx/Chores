@@ -22,6 +22,17 @@ import {
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 /**
+ * Known biweekly pairs share a phase so they land on the same week.
+ * Unknown biweekly chores still stagger by order.
+ */
+const BIWEEKLY_PAIR_PHASE: Record<string, 0 | 1> = {
+  hallway: 0,
+  cardboard: 0,
+  towels: 1,
+  pag: 1,
+}
+
+/**
  * Higher = more preferred as someone's *second* chore = assigned later,
  * after people already have their first chore filled.
  */
@@ -107,7 +118,10 @@ export function scheduleWeek(
   household.chores
     .filter((chore) => chore.cadence === 'biweekly')
     .forEach((chore, index) => {
-      biweeklyPhases.set(chore.id, index % 2)
+      biweeklyPhases.set(
+        chore.id,
+        BIWEEKLY_PAIR_PHASE[chore.id] ?? index % 2,
+      )
     })
 
   const dueChores = household.chores

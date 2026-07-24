@@ -136,8 +136,8 @@ describe('scheduleWeek fairness integration', () => {
       ([, chores]) => chores.length === 2,
     )
     expect(doubled).toBeTruthy()
-    // Even week stackable biweekly is pag (cardboard is on the odd set).
-    expect(doubled![1]).toContain('pag')
+    // Even week stackable biweekly is cardboard (paired with hallway).
+    expect(doubled![1]).toContain('cardboard')
   })
 
   it('keeps weekly non-zone chore totals roughly even over a six-week window', () => {

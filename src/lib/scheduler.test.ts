@@ -108,6 +108,26 @@ describe('scheduleWeek', () => {
     expect(new Set(secondChores)).toEqual(new Set(['cardboard', 'pag', 'towels']));
   });
 
+  it('pairs hallway with cardboard and towels with P/A/G', () => {
+    const household: Household = {
+      people: basePeople,
+      biweeklyParity: 0,
+      chores: [
+        { id: 'hallway', name: 'Hallway', cadence: 'biweekly' },
+        { id: 'cardboard', name: 'Cardboard', cadence: 'biweekly' },
+        { id: 'towels', name: 'Towels', cadence: 'biweekly' },
+        { id: 'pag', name: 'P/A/G', cadence: 'biweekly' },
+      ],
+    };
+
+    expect(
+      scheduleWeek(household, {}, '2026-W30').assignments.map(({ choreId }) => choreId).sort(),
+    ).toEqual(['cardboard', 'hallway']);
+    expect(
+      scheduleWeek(household, {}, '2026-W31').assignments.map(({ choreId }) => choreId).sort(),
+    ).toEqual(['pag', 'towels']);
+  });
+
   it('staggers biweekly chores across alternating weeks', () => {
     const household: Household = {
       people: basePeople,
@@ -115,18 +135,18 @@ describe('scheduleWeek', () => {
       chores: [
         { id: 'dishes', name: 'Dishes', cadence: 'weekly' },
         { id: 'hallway', name: 'Hallway', cadence: 'biweekly' },
+        { id: 'towels', name: 'Towels', cadence: 'biweekly' },
         { id: 'cardboard', name: 'Cardboard', cadence: 'biweekly' },
         { id: 'pag', name: 'P/A/G', cadence: 'biweekly' },
-        { id: 'towels', name: 'Towels', cadence: 'biweekly' },
       ],
     };
 
     expect(
       scheduleWeek(household, {}, '2026-W30').assignments.map(({ choreId }) => choreId),
-    ).toEqual(['dishes', 'hallway', 'pag']);
+    ).toEqual(['dishes', 'hallway', 'cardboard']);
     expect(
       scheduleWeek(household, {}, '2026-W31').assignments.map(({ choreId }) => choreId),
-    ).toEqual(['dishes', 'cardboard', 'towels']);
+    ).toEqual(['dishes', 'towels', 'pag']);
   });
 
   it('shifts the staggered biweekly set when household parity flips', () => {
