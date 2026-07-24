@@ -1,59 +1,20 @@
 {
   "people": [
-    {
-      "id": "alex",
-      "name": "Alex",
-      "bathZone": "up"
-    },
-    {
-      "id": "blake",
-      "name": "Blake",
-      "bathZone": "down"
-    },
-    {
-      "id": "casey",
-      "name": "Casey",
-      "bathZone": "up"
-    },
-    {
-      "id": "drew",
-      "name": "Drew",
-      "bathZone": "down"
-    }
+    { "id": "person-1", "name": "Person 1", "bathZone": "up" },
+    { "id": "person-2", "name": "Person 2", "bathZone": "down" },
+    { "id": "person-3", "name": "Person 3", "bathZone": "up" },
+    { "id": "person-4", "name": "Person 4", "bathZone": "down" },
+    { "id": "person-5", "name": "Person 5", "bathZone": "up" },
+    { "id": "person-6", "name": "Person 6", "bathZone": "down" }
   ],
   "chores": [
-    {
-      "id": "kitchen",
-      "name": "Kitchen",
-      "cadence": "weekly"
-    },
-    {
-      "id": "trash-recycling",
-      "name": "Trash & recycling",
-      "cadence": "weekly"
-    },
-    {
-      "id": "vacuum-floors",
-      "name": "Vacuum / floors",
-      "cadence": "weekly"
-    },
-    {
-      "id": "bathroom-upstairs",
-      "name": "Bathroom upstairs",
-      "cadence": "weekly",
-      "zone": "up"
-    },
-    {
-      "id": "bathroom-downstairs",
-      "name": "Bathroom downstairs",
-      "cadence": "weekly",
-      "zone": "down"
-    },
-    {
-      "id": "fridge-clean-out",
-      "name": "Fridge clean-out",
-      "cadence": "biweekly"
-    }
+    { "id": "bath-up", "name": "Bath up", "cadence": "weekly", "zone": "up" },
+    { "id": "bath-down", "name": "Bath down", "cadence": "weekly", "zone": "down" },
+    { "id": "kitchen", "name": "Kitchen", "cadence": "weekly" },
+    { "id": "hallway", "name": "Hallway", "cadence": "weekly" },
+    { "id": "cardboard", "name": "Cardboard", "cadence": "biweekly" },
+    { "id": "pag", "name": "P/A/G (pet / alu / glass)", "cadence": "biweekly" },
+    { "id": "towels", "name": "Towels", "cadence": "biweekly" }
   ],
   "biweeklyParity": 0
 }

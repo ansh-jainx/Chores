@@ -56,7 +56,7 @@ describe('scheduleWeek fairness integration', () => {
   it('assigns the upstairs bathroom only to upstairs-zone people when both zones are present', () => {
     const householdZones = new Set(FALLBACK_HOUSEHOLD.people.map((person) => person.bathZone))
     const upstairsBathroomChores = FALLBACK_HOUSEHOLD.chores.filter(
-      (chore) => chore.zone === 'up' && /bathroom/i.test(`${chore.id} ${chore.name}`),
+      (chore) => chore.zone === 'up',
     )
     const upstairsBathroomIds = new Set(upstairsBathroomChores.map((chore) => chore.id))
 
