@@ -1,5 +1,7 @@
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DAYS_PER_WEEK = 7;
+const MS_PER_WEEK = DAYS_PER_WEEK * MS_PER_DAY;
+const ROTATION_PHASE_OFFSET = 1667;
 const WEEK_KEY_PATTERN = /^(\d{4})-W(\d{2})$/;
 const MONTH_NAMES = [
   'Jan',
@@ -46,8 +48,11 @@ export function parseWeekKey(weekKey: string): { year: number; week: number } {
 
 export function weekOrdinal(weekKey: string): number {
   const { year, week } = parseWeekKey(weekKey);
+  const weeksSinceOrdinalEpoch =
+    (startOfIsoWeekMs(year, week) - startOfIsoWeekMs(0, 1)) / MS_PER_WEEK;
 
-  return year * 53 + week;
+  // Anchor the continuous ordinal to the original 2026-W30 rotation value.
+  return Math.round(weeksSinceOrdinalEpoch) + 1 + ROTATION_PHASE_OFFSET;
 }
 
 export function addWeeks(weekKey: string, delta: number): string {
@@ -58,7 +63,7 @@ export function addWeeks(weekKey: string, delta: number): string {
   const { year, week } = parseWeekKey(weekKey);
   const startMs = startOfIsoWeekMs(year, week);
 
-  return weekKeyFromUtcMs(startMs + delta * DAYS_PER_WEEK * MS_PER_DAY);
+  return weekKeyFromUtcMs(startMs + delta * MS_PER_WEEK);
 }
 
 export function currentWeekKey(now = new Date()): string {
@@ -102,9 +107,8 @@ function weekKeyFromUtcMs(utcMs: number): string {
   const thursdayMs = utcMs + (4 - isoWeekday) * MS_PER_DAY;
   const thursday = new Date(thursdayMs);
   const weekYear = thursday.getUTCFullYear();
-  const yearStartMs = utcDateMs(weekYear, 0, 1);
-  const daysIntoYear = Math.floor((thursdayMs - yearStartMs) / MS_PER_DAY);
-  const week = Math.ceil((daysIntoYear + 1) / DAYS_PER_WEEK);
+  const weekOneStartMs = startOfIsoWeekMs(weekYear, 1);
+  const week = Math.floor((utcMs - weekOneStartMs) / MS_PER_WEEK) + 1;
 
   return `${String(weekYear).padStart(4, '0')}-W${String(week).padStart(2, '0')}`;
 }

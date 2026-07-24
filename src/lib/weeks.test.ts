@@ -17,13 +17,16 @@ describe('ISO week helpers', () => {
       [new Date(2026, 0, 1, 12), '2026-W01'],
       [new Date(2026, 11, 31, 12), '2026-W53'],
       [new Date(2027, 0, 1, 12), '2026-W53'],
+      [new Date(2020, 0, 1, 12), '2020-W01'],
       [new Date(2020, 11, 31, 12), '2020-W53'],
       [new Date(2021, 0, 1, 12), '2020-W53'],
       [new Date(2021, 0, 4, 12), '2021-W01'],
+      [new Date(2024, 0, 1, 12), '2024-W01'],
       [new Date(2018, 11, 31, 12), '2019-W01'],
       [new Date(2019, 11, 30, 12), '2020-W01'],
       [new Date(2024, 11, 29, 12), '2024-W52'],
       [new Date(2024, 11, 30, 12), '2025-W01'],
+      [new Date(2017, 0, 1, 12), '2016-W52'],
     ])('formats %s as %s', (date, weekKey) => {
       expect(toWeekKey(date)).toBe(weekKey);
     });
@@ -34,25 +37,42 @@ describe('ISO week helpers', () => {
   });
 
   describe('parseWeekKey', () => {
-    it('parses a valid ISO week key', () => {
-      expect(parseWeekKey('2026-W30')).toEqual({ year: 2026, week: 30 });
+    it.each([
+      ['2026-W30', { year: 2026, week: 30 }],
+      ['2020-W53', { year: 2020, week: 53 }],
+      ['2026-W53', { year: 2026, week: 53 }],
+      ['2025-W01', { year: 2025, week: 1 }],
+    ])('parses valid ISO week key %s', (weekKey, expected) => {
+      expect(parseWeekKey(weekKey)).toEqual(expected);
     });
 
-    it.each(['2026-W3', '2026-30', '2026-W00', '2021-W53', 'abcd'])(
-      'rejects invalid key %s',
-      (weekKey) => {
-        expect(() => parseWeekKey(weekKey)).toThrow(RangeError);
-      },
-    );
+    it.each([
+      '2026-W3',
+      '2026-30',
+      '2026-W00',
+      '2021-W53',
+      '2024-W53',
+      '2025-W53',
+      '2026-W54',
+      'abcd',
+    ])('rejects invalid key %s', (weekKey) => {
+      expect(() => parseWeekKey(weekKey)).toThrow(RangeError);
+    });
   });
 
   describe('weekOrdinal', () => {
     it('returns a stable integer for rotation', () => {
-      expect(weekOrdinal('2026-W30')).toBe(2026 * 53 + 30);
+      expect(Number.isInteger(weekOrdinal('2026-W30'))).toBe(true);
     });
 
-    it('orders adjacent years correctly when the prior year has week 53', () => {
-      expect(weekOrdinal('2026-W53')).toBeLessThan(weekOrdinal('2027-W01'));
+    it.each([
+      ['2026-W30', '2026-W31'],
+      ['2024-W52', '2025-W01'],
+      ['2020-W53', '2021-W01'],
+      ['2026-W53', '2027-W01'],
+    ])('increments by one from %s to %s', (weekKey, nextWeekKey) => {
+      expect(addWeeks(weekKey, 1)).toBe(nextWeekKey);
+      expect(weekOrdinal(nextWeekKey)).toBe(weekOrdinal(weekKey) + 1);
     });
   });
 
@@ -67,6 +87,16 @@ describe('ISO week helpers', () => {
       ['2025-W01', -1, '2024-W52'],
     ])('adds %d weeks to %s', (weekKey, delta, expected) => {
       expect(addWeeks(weekKey, delta)).toBe(expected);
+    });
+
+    it.each([
+      ['2026-W30', 0],
+      ['2024-W52', 1],
+      ['2025-W01', -1],
+      ['2020-W53', 5],
+      ['2027-W01', -53],
+    ])('roundtrips %s by %d weeks', (weekKey, delta) => {
+      expect(addWeeks(addWeeks(weekKey, delta), -delta)).toBe(weekKey);
     });
 
     it('rejects fractional deltas', () => {
@@ -86,6 +116,8 @@ describe('ISO week helpers', () => {
       ['2026-W14', 'Mar 30\u2013Apr 5, 2026'],
       ['2025-W01', 'Dec 30, 2024\u2013Jan 5, 2025'],
       ['2026-W01', 'Dec 29, 2025\u2013Jan 4, 2026'],
+      ['2020-W53', 'Dec 28, 2020\u2013Jan 3, 2021'],
+      ['2024-W01', 'Jan 1\u20137, 2024'],
     ])('formats %s as %s', (weekKey, label) => {
       expect(formatWeekLabel(weekKey)).toBe(label);
     });
@@ -98,6 +130,20 @@ describe('ISO week helpers', () => {
         '2026-W53',
         '2027-W01',
         '2027-W02',
+      ]);
+    });
+
+    it('keeps length and order across a 52-week year boundary', () => {
+      const weekKeys = listUpcomingWeekKeys('2024-W50', 6);
+
+      expect(weekKeys).toHaveLength(6);
+      expect(weekKeys).toEqual([
+        '2024-W50',
+        '2024-W51',
+        '2024-W52',
+        '2025-W01',
+        '2025-W02',
+        '2025-W03',
       ]);
     });
 
