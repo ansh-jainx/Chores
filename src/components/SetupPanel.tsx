@@ -18,6 +18,7 @@ interface SetupPanelProps {
   onAwayChange: (away: AwayMap) => void
   onReset: () => void
   onCopyShareLink: () => Promise<string>
+  onPrintCalendar: () => void
 }
 
 const bathZones: BathZone[] = ['up', 'down']
@@ -64,6 +65,7 @@ function SetupPanel({
   onAwayChange,
   onReset,
   onCopyShareLink,
+  onPrintCalendar,
 }: SetupPanelProps) {
   const [copyStatus, setCopyStatus] = useState<
     'idle' | 'copying' | 'copied' | 'error'
@@ -205,7 +207,8 @@ function SetupPanel({
         <div>
           <h2 id="setup-heading">Setup</h2>
           <p className="setup-panel__note">
-            Share links sync the household and away weeks for your flatmates.
+            Share a one-time snapshot with flatmates, or print an 8-week rota as
+            PDF.
           </p>
         </div>
       </div>
@@ -386,6 +389,13 @@ function SetupPanel({
           </button>
           <button
             type="button"
+            className="secondary-button"
+            onClick={onPrintCalendar}
+          >
+            Print / Save PDF
+          </button>
+          <button
+            type="button"
             className="primary-button"
             disabled={copyStatus === 'copying' || hasBlankNames}
             aria-describedby="copy-feedback"
@@ -400,6 +410,10 @@ function SetupPanel({
           <span id="copy-feedback" className="copy-feedback" aria-live="polite">
             {copyFeedback}
           </span>
+          <p className="field-help">
+            Print / Save PDF opens an 8-week calendar. In the dialog, choose Save
+            as PDF or your printer.
+          </p>
           {copyStatus === 'error' && shareUrl ? (
             <label className="field share-link-fallback">
               <span>Share link</span>
