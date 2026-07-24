@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Flat Chores</title>
+  <rect width="64" height="64" rx="16" fill="#0f172a"/>
+  <circle cx="32" cy="32" r="24" fill="#0f766e"/>
+  <path fill="#14b8a6" d="M18 28c0-8 6-14 14-14s14 6 14 14v2H18v-2Z"/>
+  <path fill="#ccfbf1" d="M20 29h24l-3 20H23l-3-20Z"/>
+  <path fill="#0f172a" d="M25 21h14v4H25z"/>
+  <path fill="#0f172a" d="m28.5 40.5 3.5 3.5 8-10 3 2.4L32.4 49 25.7 42.3l2.8-1.8Z"/>
+  <path stroke="#94a3b8" stroke-linecap="round" stroke-width="4" d="M47 17 17 47"/>
+</svg>
