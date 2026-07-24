@@ -102,6 +102,52 @@ export function listUpcomingWeekKeys(
   );
 }
 
+/** Shift an ISO date (YYYY-MM-DD) by a whole number of days. */
+export function addDaysToIsoDate(date: string, days: number): string {
+  if (!Number.isInteger(days)) {
+    throw new RangeError(`Day delta must be an integer: ${days}`);
+  }
+
+  return formatUtcDate(parseIsoDate(date) + days * MS_PER_DAY);
+}
+
+/** ISO week key containing the given calendar date. */
+export function weekKeyFromIsoDate(isoDate: string): string {
+  return weekKeyFromUtcMs(parseIsoDate(isoDate));
+}
+
+/**
+ * Inclusive date range → ISO week keys that overlap it.
+ * Caps at 80 weeks to keep exports bounded.
+ */
+export function weekKeysOverlappingRange(from: string, until: string): string[] {
+  if (until < from) {
+    return [];
+  }
+
+  const rangeStart = parseIsoDate(from);
+  const rangeEnd = parseIsoDate(until);
+  const keys: string[] = [];
+  let weekKey = weekKeyFromIsoDate(from);
+
+  for (let i = 0; i < 80; i += 1) {
+    const weekStart = parseIsoDate(weekStartDate(weekKey));
+    const weekEnd = parseIsoDate(weekEndExclusiveDate(weekKey));
+
+    if (weekStart > rangeEnd) {
+      break;
+    }
+
+    if (weekEnd > rangeStart && weekStart <= rangeEnd) {
+      keys.push(weekKey);
+    }
+
+    weekKey = addWeeks(weekKey, 1);
+  }
+
+  return keys;
+}
+
 /** Monday 00:00 UTC of the ISO week, as YYYY-MM-DD. */
 export function weekStartDate(weekKey: string): string {
   const { year, week } = parseWeekKey(weekKey);

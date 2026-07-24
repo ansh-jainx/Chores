@@ -123,7 +123,6 @@ function App() {
           onAwayChange={setAway}
           onReset={resetToDefaults}
           onCopyShareLink={copyShareLink}
-          onPrintCalendar={() => window.print()}
         />
       )
     }

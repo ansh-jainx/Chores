@@ -1,4 +1,9 @@
 import { useState } from 'react'
+import {
+  defaultExportRange,
+  type ExportFormat,
+} from '../lib/calendarExport'
+import { downloadChoresPdf } from '../lib/pdfExport'
 import { encodeShareHash } from '../lib/share'
 import type {
   AwayMap,
@@ -18,7 +23,6 @@ interface SetupPanelProps {
   onAwayChange: (away: AwayMap) => void
   onReset: () => void
   onCopyShareLink: () => Promise<string>
-  onPrintCalendar: () => void
 }
 
 const bathZones: BathZone[] = ['up', 'down']
@@ -65,15 +69,43 @@ function SetupPanel({
   onAwayChange,
   onReset,
   onCopyShareLink,
-  onPrintCalendar,
 }: SetupPanelProps) {
+  const initialRange = defaultExportRange()
   const [copyStatus, setCopyStatus] = useState<
     'idle' | 'copying' | 'copied' | 'error'
   >('idle')
   const [shareUrl, setShareUrl] = useState('')
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('monthly')
+  const [exportFrom, setExportFrom] = useState(initialRange.from)
+  const [exportUntil, setExportUntil] = useState(initialRange.until)
+  const [exportStatus, setExportStatus] = useState<
+    'idle' | 'working' | 'done' | 'error'
+  >('idle')
+  const [exportError, setExportError] = useState('')
   const hasBlankNames =
     household.people.some((person) => person.name.trim().length === 0) ||
     household.chores.some((chore) => chore.name.trim().length === 0)
+
+  const handleDownloadPdf = async () => {
+    setExportStatus('working')
+    setExportError('')
+    try {
+      await downloadChoresPdf({
+        household,
+        away,
+        format: exportFormat,
+        from: exportFrom,
+        until: exportUntil,
+      })
+      setExportStatus('done')
+      window.setTimeout(() => setExportStatus('idle'), 1800)
+    } catch (error) {
+      setExportStatus('error')
+      setExportError(
+        error instanceof Error ? error.message : 'Could not create the PDF.',
+      )
+    }
+  }
 
   const updateHousehold = (changes: Partial<Household>) => {
     onChange({ ...household, ...changes })
@@ -207,8 +239,7 @@ function SetupPanel({
         <div>
           <h2 id="setup-heading">Setup</h2>
           <p className="setup-panel__note">
-            Share a one-time snapshot with flatmates, or print an 8-week rota as
-            PDF.
+            Share a one-time snapshot, or download a PDF rota for a date range.
           </p>
         </div>
       </div>
@@ -382,17 +413,69 @@ function SetupPanel({
         </div>
       </section>
 
+      <section className="setup-section" aria-labelledby="export-heading">
+        <div className="setup-section__header">
+          <h3 id="export-heading">Download PDF</h3>
+        </div>
+        <p className="field-help">
+          Monthly calendar puts weekend chores on Sat/Sun and cardboard on
+          Wednesday (Tue night / Wed morning). Weekly rota is people × weeks for
+          the same date range.
+        </p>
+        <div className="export-form">
+          <label className="field">
+            <span>Format</span>
+            <select
+              value={exportFormat}
+              onChange={(event) =>
+                setExportFormat(event.target.value as ExportFormat)
+              }
+            >
+              <option value="monthly">Monthly calendar</option>
+              <option value="weekly">Weekly rota</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>From</span>
+            <input
+              type="date"
+              value={exportFrom}
+              onChange={(event) => setExportFrom(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Until</span>
+            <input
+              type="date"
+              value={exportUntil}
+              min={exportFrom}
+              onChange={(event) => setExportUntil(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="primary-button"
+            disabled={exportStatus === 'working' || !exportFrom || !exportUntil}
+            onClick={() => void handleDownloadPdf()}
+          >
+            {exportStatus === 'working'
+              ? 'Creating PDF…'
+              : exportStatus === 'done'
+                ? 'Downloaded!'
+                : 'Download PDF'}
+          </button>
+        </div>
+        {exportStatus === 'error' ? (
+          <p className="field-help" role="alert">
+            {exportError}
+          </p>
+        ) : null}
+      </section>
+
       <section className="setup-section" aria-label="Setup actions">
         <div className="setup-actions">
           <button type="button" className="danger-button" onClick={onReset}>
             Reset to defaults
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={onPrintCalendar}
-          >
-            Print / Save PDF
           </button>
           <button
             type="button"
@@ -410,10 +493,6 @@ function SetupPanel({
           <span id="copy-feedback" className="copy-feedback" aria-live="polite">
             {copyFeedback}
           </span>
-          <p className="field-help">
-            Print / Save PDF opens an 8-week calendar. In the dialog, choose Save
-            as PDF or your printer.
-          </p>
           {copyStatus === 'error' && shareUrl ? (
             <label className="field share-link-fallback">
               <span>Share link</span>
