@@ -1,0 +1,90 @@
+:root {
+  --color-bg: #0b1220;
+  --color-bg-soft: #111c2f;
+  --color-surface: rgba(248, 250, 252, 0.92);
+  --color-surface-strong: #ffffff;
+  --color-text: #1f2937;
+  --color-text-muted: #64748b;
+  --color-heading: #0f172a;
+  --color-border: rgba(15, 23, 42, 0.12);
+  --color-accent: #0f766e;
+  --color-accent-strong: #115e59;
+  --color-accent-soft: #ccfbf1;
+  --color-accent-glow: rgba(20, 184, 166, 0.22);
+  --shadow-card: 0 24px 80px rgba(15, 23, 42, 0.2);
+  --shadow-soft: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --radius-lg: 28px;
+  --radius-md: 18px;
+  --radius-sm: 12px;
+  --font-body: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+  --font-brand: 'Fraunces', Georgia, serif;
+
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-synthesis: none;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--color-bg);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100svh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(20, 184, 166, 0.26), transparent 30rem),
+    radial-gradient(circle at 84% 0%, rgba(45, 212, 191, 0.18), transparent 28rem),
+    linear-gradient(145deg, var(--color-bg) 0%, var(--color-bg-soft) 55%, #162033 100%);
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.65), transparent 72%);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--color-heading);
+}
+
+#root {
+  min-height: 100svh;
+}

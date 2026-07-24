@@ -1,0 +1,256 @@
+.app-shell {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 980px);
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 24px 16px 18px;
+}
+
+.app-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.eyebrow {
+  color: var(--color-accent-soft);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.app-header h1 {
+  margin-top: 2px;
+  color: #f8fafc;
+  font-family: var(--font-brand);
+  font-size: clamp(2.45rem, 16vw, 4.5rem);
+  font-weight: 700;
+  letter-spacing: -0.06em;
+  line-height: 0.96;
+}
+
+.app-subtitle {
+  max-width: 28rem;
+  margin-top: 10px;
+  color: rgba(226, 232, 240, 0.76);
+  font-size: 0.98rem;
+}
+
+.header-chip {
+  flex: 0 0 auto;
+  min-width: max-content;
+  padding: 9px 12px;
+  border: 1px solid rgba(204, 251, 241, 0.22);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.36);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: #ccfbf1;
+  font-size: 0.84rem;
+  font-weight: 700;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.header-chip:active {
+  transform: scale(0.97);
+}
+
+.tab-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid rgba(204, 251, 241, 0.14);
+  border-radius: 22px;
+  background: rgba(15, 23, 42, 0.48);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(18px);
+}
+
+.tab-button {
+  display: flex;
+  min-height: 64px;
+  cursor: pointer;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: rgba(226, 232, 240, 0.76);
+  text-align: center;
+  transition:
+    transform 150ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.tab-button span {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.tab-button small {
+  color: inherit;
+  font-size: 0.7rem;
+  opacity: 0.72;
+}
+
+.tab-button:hover {
+  color: #f8fafc;
+}
+
+.tab-button:active {
+  transform: scale(0.97);
+}
+
+.tab-button:focus-visible {
+  outline: 3px solid rgba(45, 212, 191, 0.55);
+  outline-offset: 2px;
+}
+
+.tab-button.is-active {
+  background: linear-gradient(135deg, #ecfeff 0%, #ccfbf1 100%);
+  box-shadow:
+    0 12px 28px rgba(20, 184, 166, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  color: var(--color-accent-strong);
+}
+
+.app-card {
+  margin-top: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.tab-panel {
+  min-height: 360px;
+  padding: 18px;
+  animation: tab-fade 220ms ease-out both;
+}
+
+.loading-card {
+  display: grid;
+  min-height: 320px;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 34px 18px;
+  border: 1px dashed var(--color-border);
+  border-radius: 22px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(236, 253, 245, 0.74)),
+    var(--color-surface-strong);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.loading-card .eyebrow {
+  color: var(--color-accent);
+}
+
+.loading-card h2 {
+  font-family: var(--font-brand);
+  font-size: clamp(1.8rem, 9vw, 2.75rem);
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.loading-card p:last-child {
+  max-width: 22rem;
+}
+
+.loading-pulse {
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 999px;
+  background: radial-gradient(circle, var(--color-accent) 0 28%, transparent 30%);
+  box-shadow: 0 0 0 0 var(--color-accent-glow);
+  animation: calm-pulse 1.7s ease-in-out infinite;
+}
+
+.install-hint {
+  padding: 16px 10px 0;
+  color: rgba(226, 232, 240, 0.7);
+  font-size: 0.86rem;
+  text-align: center;
+}
+
+@keyframes tab-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes calm-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0);
+    transform: scale(0.96);
+  }
+
+  50% {
+    box-shadow: 0 0 0 14px rgba(20, 184, 166, 0.12);
+    transform: scale(1);
+  }
+}
+
+@media (min-width: 720px) {
+  .app-shell {
+    padding: 42px 28px 24px;
+  }
+
+  .app-header {
+    align-items: center;
+    margin-bottom: 22px;
+  }
+
+  .tab-list {
+    gap: 10px;
+  }
+
+  .tab-button {
+    min-height: 72px;
+  }
+
+  .tab-panel {
+    padding: 26px;
+  }
+}
+
+@media (max-width: 520px) {
+  .app-header {
+    flex-direction: column;
+  }
+
+  .header-chip {
+    align-self: flex-start;
+  }
+
+  .tab-button small {
+    display: none;
+  }
+
+  .tab-button {
+    min-height: 50px;
+  }
+}
