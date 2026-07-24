@@ -4,7 +4,14 @@ import type { Assignment, Chore } from '../types'
 import { FALLBACK_HOUSEHOLD } from './defaults'
 import { scheduleWeek } from './scheduler'
 
-const WEEK_KEYS = ['2026-W30', '2026-W31', '2026-W32', '2026-W33'] as const
+const WEEK_KEYS = [
+  '2026-W30',
+  '2026-W31',
+  '2026-W32',
+  '2026-W33',
+  '2026-W34',
+  '2026-W35',
+] as const
 const EMPTY_AWAY = {}
 
 const choreById = new Map(FALLBACK_HOUSEHOLD.chores.map((chore) => [chore.id, chore]))
@@ -40,20 +47,26 @@ function totalCounts(countsByWeek: Map<string, number>[]): number[] {
 }
 
 describe('scheduleWeek fairness integration', () => {
-  it('keeps non-zone chore totals within one assignment over four consecutive weeks', () => {
+  it('keeps weekly non-zone chore totals equal over a full six-person cycle', () => {
     const countsByWeek = WEEK_KEYS.map((weekKey) => {
       const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
 
-      return countAssignments(schedule.assignments, (chore) => chore.zone === undefined)
+      return countAssignments(
+        schedule.assignments,
+        (chore) => chore.zone === undefined && chore.cadence === 'weekly',
+      )
     })
     const counts = totalCounts(countsByWeek)
-    const totalNonZoneAssignments = counts.reduce((sum, count) => sum + count, 0)
+    const weeklyNonZoneChoreCount = FALLBACK_HOUSEHOLD.chores.filter(
+      (chore) => chore.zone === undefined && chore.cadence === 'weekly',
+    ).length
+    const totalWeeklyNonZoneAssignments = counts.reduce((sum, count) => sum + count, 0)
 
-    expect(totalNonZoneAssignments).toBeGreaterThan(0)
-    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1)
+    expect(totalWeeklyNonZoneAssignments).toBe(weeklyNonZoneChoreCount * WEEK_KEYS.length)
+    expect(Math.max(...counts) - Math.min(...counts)).toBe(0)
   })
 
-  it('assigns the upstairs bathroom only to upstairs-zone people when both zones are present', () => {
+  it('assigns bath-up only to upstairs-zone people when both zones are present', () => {
     const householdZones = new Set(FALLBACK_HOUSEHOLD.people.map((person) => person.bathZone))
     const upstairsBathroomChores = FALLBACK_HOUSEHOLD.chores.filter(
       (chore) => chore.zone === 'up',
