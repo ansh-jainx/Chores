@@ -18,7 +18,7 @@ Keep `id` values stable where possible so saved holidays and share links continu
 
 ## Share links and holidays
 
-Holidays are date ranges: **Away from** (first day away) to **Back on** (first day home again). A Mon–Sun week skips chores for that person only if they are away **4 or more days** in that week. Example: away Thu → back next Thu means 4 days in week 1 (no chores) and 3 days in week 2 (still chores).
+On the Holidays tab, pick who is away, give the trip a name, and choose **Away from** / **Back on** dates on the calendar. The app decides which Mon–Sun weeks skip chores (4+ days away in that week). The This week view shows who is on holiday and the holiday name.
 
 Share links use the current page URL plus a `#s=<base64url-json>` hash, for example:
 
