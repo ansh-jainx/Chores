@@ -94,35 +94,22 @@ describe('scheduleWeek fairness integration', () => {
     expect(onEven.length + onOdd.length).toBe(biweeklyIds.length)
     expect(onEven.every((id) => !odd.has(id))).toBe(true)
   })
-  it('leaves two people chore-free on a full default week (stacking one light chore)', () => {
+  it('leaves exactly one person chore-free on a full default week (no stacking)', () => {
     for (const weekKey of WEEK_KEYS) {
       const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
       const counts = new Map<string, number>()
-      const choresByPerson = new Map<string, string[]>()
       for (const assignment of schedule.assignments) {
         counts.set(
           assignment.personId,
           (counts.get(assignment.personId) ?? 0) + 1,
         )
-        const list = choresByPerson.get(assignment.personId) ?? []
-        list.push(assignment.choreId)
-        choresByPerson.set(assignment.personId, list)
       }
 
       const freeCount =
         FALLBACK_HOUSEHOLD.people.length -
         [...counts.keys()].filter((id) => (counts.get(id) ?? 0) > 0).length
-      expect(freeCount).toBe(2)
-      expect(Math.max(0, ...counts.values())).toBeLessThanOrEqual(2)
-
-      const doubled = [...choresByPerson.entries()].find(
-        ([, chores]) => chores.length === 2,
-      )
-      expect(doubled).toBeTruthy()
-      // Stacked second chore should be a preferred light/side job.
-      expect(
-        doubled![1].some((id) => ['cardboard', 'pag', 'towels'].includes(id)),
-      ).toBe(true)
+      expect(freeCount).toBe(1)
+      expect(Math.max(0, ...counts.values())).toBe(1)
     }
   })
 
@@ -182,8 +169,49 @@ describe('scheduleWeek fairness integration', () => {
 
     const counts = [...freeCounts.values()]
     expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1)
-    // Two free people per week when all six are home.
-    expect(counts.reduce((sum, count) => sum + count, 0)).toBe(weeks * 2)
+    // One free person per week when all six are home.
+    expect(counts.reduce((sum, count) => sum + count, 0)).toBe(weeks)
+  })
+
+  it('gives each person one free week and one cardboard/towel week every six weeks', () => {
+    const start = '2026-W30'
+    const freeCounts = new Map(
+      FALLBACK_HOUSEHOLD.people.map((person) => [person.id, 0]),
+    )
+    const lightCounts = new Map(
+      FALLBACK_HOUSEHOLD.people.map((person) => [person.id, 0]),
+    )
+
+    for (let index = 0; index < 6; index += 1) {
+      const weekKey = addWeeks(start, index)
+      const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
+      const assigned = new Set(
+        schedule.assignments.map((assignment) => assignment.personId),
+      )
+
+      for (const person of FALLBACK_HOUSEHOLD.people) {
+        if (!assigned.has(person.id)) {
+          freeCounts.set(person.id, (freeCounts.get(person.id) ?? 0) + 1)
+        }
+      }
+
+      for (const assignment of schedule.assignments) {
+        if (
+          assignment.choreId === 'cardboard' ||
+          assignment.choreId === 'towels'
+        ) {
+          lightCounts.set(
+            assignment.personId,
+            (lightCounts.get(assignment.personId) ?? 0) + 1,
+          )
+        }
+      }
+    }
+
+    for (const person of FALLBACK_HOUSEHOLD.people) {
+      expect(freeCounts.get(person.id)).toBe(1)
+      expect(lightCounts.get(person.id)).toBe(1)
+    }
   })
 
   it('keeps weekly non-zone chore totals roughly even over a six-week window', () => {
