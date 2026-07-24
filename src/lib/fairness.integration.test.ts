@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Assignment, Chore } from '../types'
 import { FALLBACK_HOUSEHOLD } from './defaults'
 import { scheduleWeek } from './scheduler'
+import { addWeeks } from './weeks'
 
 const WEEK_KEYS = [
   '2026-W30',
@@ -138,6 +139,32 @@ describe('scheduleWeek fairness integration', () => {
     expect(doubled).toBeTruthy()
     // Even week stackable biweekly is cardboard (paired with hallway).
     expect(doubled![1]).toContain('cardboard')
+  })
+
+  it('rotates chore-free weeks evenly when everyone is home', () => {
+    const freeCounts = new Map(
+      FALLBACK_HOUSEHOLD.people.map((person) => [person.id, 0]),
+    )
+    const start = '2026-W30'
+    const weeks = 24
+
+    for (let index = 0; index < weeks; index += 1) {
+      const weekKey = addWeeks(start, index)
+      const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
+      const assigned = new Set(
+        schedule.assignments.map((assignment) => assignment.personId),
+      )
+
+      for (const person of FALLBACK_HOUSEHOLD.people) {
+        if (!assigned.has(person.id)) {
+          freeCounts.set(person.id, (freeCounts.get(person.id) ?? 0) + 1)
+        }
+      }
+    }
+
+    const counts = [...freeCounts.values()]
+    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1)
+    expect(counts.reduce((sum, count) => sum + count, 0)).toBe(weeks)
   })
 
   it('keeps weekly non-zone chore totals roughly even over a six-week window', () => {

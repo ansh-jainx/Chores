@@ -145,17 +145,26 @@ export function scheduleWeek(
       return left.choreIndex - right.choreIndex
     })
 
+  // Rotate who sits out when there are more people than chores, so free weeks
+  // are shared instead of the same people always working.
+  const freePersonIds = selectFreePersonIds(
+    presentPeople,
+    dueChores.map(({ chore }) => chore),
+    rotationOrdinal,
+  )
+  const workingPeople = presentPeople.filter(
+    (person) => !freePersonIds.has(person.id),
+  )
+
   for (const { chore, choreIndex } of dueChores) {
     const effort = choreEffort(chore)
-    let candidates = chore.zone
-      ? presentPeople.filter((person) => person.bathZone === chore.zone)
-      : presentPeople
     const warnings: string[] = []
-
-    if (chore.zone && candidates.length === 0) {
-      candidates = presentPeople
-      warnings.push(`Zone spill: no bath-${chore.zone} people home`)
-    }
+    let candidates = candidatesForChore(
+      chore,
+      workingPeople,
+      presentPeople,
+      warnings,
+    )
 
     if (effort === 'heavy') {
       const withoutHeavy = candidates.filter(
@@ -241,6 +250,80 @@ function assignLaterScore(chore: Chore): number {
     return 40
   }
   return 90
+}
+
+/**
+ * Choose who gets a chore-free week when people outnumber due chores.
+ * Rotates by week ordinal and skips picks that would leave a bath zone empty.
+ */
+function selectFreePersonIds(
+  presentPeople: Person[],
+  dueChores: Chore[],
+  rotationOrdinal: number,
+): Set<string> {
+  const freeCount = presentPeople.length - dueChores.length
+  if (freeCount <= 0 || presentPeople.length === 0) {
+    return new Set()
+  }
+
+  const needsUp = dueChores.some((chore) => chore.zone === 'up')
+  const needsDown = dueChores.some((chore) => chore.zone === 'down')
+  const free = new Set<string>()
+
+  for (
+    let offset = 0;
+    free.size < freeCount && offset < presentPeople.length * 2;
+    offset += 1
+  ) {
+    const candidate =
+      presentPeople[positiveModulo(rotationOrdinal + offset, presentPeople.length)]
+    if (free.has(candidate.id)) {
+      continue
+    }
+
+    free.add(candidate.id)
+    const remaining = presentPeople.filter((person) => !free.has(person.id))
+    const ups = remaining.filter((person) => person.bathZone === 'up').length
+    const downs = remaining.filter((person) => person.bathZone === 'down').length
+
+    if ((needsUp && ups === 0) || (needsDown && downs === 0)) {
+      free.delete(candidate.id)
+    }
+  }
+
+  return free
+}
+
+function candidatesForChore(
+  chore: Chore,
+  workingPeople: Person[],
+  presentPeople: Person[],
+  warnings: string[],
+): Person[] {
+  const zoneFilter = (people: Person[]) =>
+    chore.zone
+      ? people.filter((person) => person.bathZone === chore.zone)
+      : people
+
+  let candidates = zoneFilter(workingPeople)
+
+  if (chore.zone && candidates.length === 0) {
+    candidates = zoneFilter(presentPeople)
+    if (candidates.length === 0) {
+      candidates = presentPeople
+      warnings.push(`Zone spill: no bath-${chore.zone} people home`)
+    } else {
+      warnings.push(
+        `Free-week spill: bath-${chore.zone} coverage needed from a free person`,
+      )
+    }
+  }
+
+  if (candidates.length === 0) {
+    candidates = presentPeople
+  }
+
+  return candidates
 }
 
 function rangesOverlap(
