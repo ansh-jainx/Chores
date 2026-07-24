@@ -1,12 +1,11 @@
 import type { jsPDF } from 'jspdf'
 import type { AwayMap, Household } from '../types'
 import {
-  buildMonthlyCalendars,
+  buildMonthlyPersonSchedules,
   buildWeeklyExport,
+  WEEKEND_CHORE_NOTE,
   type ExportFormat,
 } from './calendarExport'
-
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob)
@@ -124,10 +123,11 @@ function drawMonthlyPdf(
   from: string,
   until: string,
 ) {
-  const months = buildMonthlyCalendars(household, away, from, until)
+  const months = buildMonthlyPersonSchedules(household, away, from, until)
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-  const margin = 10
+  const margin = 14
+  const contentWidth = pageWidth - margin * 2
 
   months.forEach((month, monthIndex) => {
     if (monthIndex > 0) {
@@ -135,88 +135,76 @@ function drawMonthlyPdf(
     }
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(16)
-    doc.text(`Flat Chores — ${month.label}`, margin, 14)
+    doc.setFontSize(18)
+    doc.text(`Flat Chores — ${month.label}`, margin, 18)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.text(
-      'Weekend chores on Sat/Sun · Cardboard on Wed (Tue night / Wed morning)',
-      margin,
-      19,
-    )
+    doc.setFontSize(9)
+    doc.setTextColor(70)
+    const noteLines = doc.splitTextToSize(WEEKEND_CHORE_NOTE, contentWidth)
+    doc.text(noteLines, margin, 25)
+    doc.setTextColor(0)
 
-    const top = 24
-    const gridWidth = pageWidth - margin * 2
-    const gridHeight = pageHeight - top - 10
-    const colWidth = gridWidth / 7
-    const rowCount = Math.max(month.weeks.length, 1)
+    let y = 25 + noteLines.length * 4 + 6
 
-    DAY_NAMES.forEach((name, index) => {
-      const x = margin + index * colWidth
-      doc.setFillColor(243, 244, 246)
-      doc.rect(x, top, colWidth, 7, 'F')
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(8)
-      doc.text(name, x + 2, top + 5)
-    })
+    for (const person of month.people) {
+      const blockHeight =
+        8 + Math.max(person.items.length, 1) * 5.2 + 6
 
-    const bodyTop = top + 7
-    const bodyHeight = gridHeight - 7
-    const bodyRowHeight = bodyHeight / rowCount
-
-    month.weeks.forEach((week, weekIndex) => {
-      week.forEach((date, dayIndex) => {
-        const x = margin + dayIndex * colWidth
-        const y = bodyTop + weekIndex * bodyRowHeight
-        const inMonth = date.startsWith(
-          `${month.year}-${String(month.month).padStart(2, '0')}-`,
-        )
-
-        doc.setDrawColor(209, 213, 219)
-        if (!inMonth) {
-          doc.setFillColor(250, 250, 250)
-          doc.rect(x, y, colWidth, bodyRowHeight, 'FD')
-        } else {
-          doc.rect(x, y, colWidth, bodyRowHeight)
-        }
-
-        const dayNum = Number(date.slice(8, 10))
+      if (y + Math.min(blockHeight, 20) > pageHeight - 12) {
+        doc.addPage()
+        y = margin
         doc.setFont('helvetica', 'bold')
-        doc.setFontSize(8)
-        doc.setTextColor(inMonth ? 0 : 160)
-        doc.text(String(dayNum), x + 2, y + 4)
-        doc.setTextColor(0)
+        doc.setFontSize(12)
+        doc.text(`${month.label} (continued)`, margin, y)
+        y += 8
+      }
 
-        if (!inMonth || date < from || date > until) {
-          return
-        }
+      doc.setFillColor(240, 253, 250)
+      doc.rect(margin, y, contentWidth, 7, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(12)
+      doc.text(person.personName, margin + 2, y + 5)
+      y += 10
 
-        const entries = month.entriesByDate[date] ?? []
+      if (person.items.length === 0) {
         doc.setFont('helvetica', 'normal')
-        doc.setFontSize(5.8)
-        let textY = y + 8
-        const maxY = y + bodyRowHeight - 2
-        for (const entry of entries) {
-          if (textY > maxY) {
-            doc.text('…', x + 1.5, textY)
-            break
-          }
-          const line =
-            entry.kind === 'holiday'
-              ? `${entry.personName}: ${entry.text}`
-              : `${entry.personName}: ${entry.text}`
-          doc.setTextColor(entry.kind === 'holiday' ? 80 : 20)
-          doc.text(line, x + 1.5, textY, { maxWidth: colWidth - 3 })
-          textY += 3.1
-          if (entry.note && textY <= maxY) {
-            doc.setTextColor(110)
-            doc.text(entry.note, x + 1.5, textY, { maxWidth: colWidth - 3 })
-            textY += 3.1
-          }
-        }
+        doc.setFontSize(9)
+        doc.setTextColor(120)
+        doc.text('No chores this month', margin + 2, y)
         doc.setTextColor(0)
-      })
-    })
+        y += 8
+        continue
+      }
+
+      for (const item of person.items) {
+        if (y > pageHeight - 12) {
+          doc.addPage()
+          y = margin
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(11)
+          doc.text(`${person.personName} (continued)`, margin, y)
+          y += 8
+        }
+
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(9)
+        doc.setTextColor(item.kind === 'holiday' ? 90 : 0)
+        doc.text(item.dateLabel, margin + 2, y)
+
+        doc.setFont('helvetica', 'normal')
+        const detail =
+          item.kind === 'holiday'
+            ? `Away — ${item.choreName}`
+            : item.note
+              ? `${item.choreName} (${item.note})`
+              : item.choreName
+        doc.text(detail, margin + 32, y, { maxWidth: contentWidth - 34 })
+        doc.setTextColor(0)
+        y += 5.2
+      }
+
+      y += 6
+    }
   })
 }
 
@@ -233,7 +221,7 @@ export async function downloadChoresPdf(options: {
   }
 
   const { jsPDF } = await import('jspdf')
-  const landscape = format === 'weekly' || household.people.length > 4
+  const landscape = format === 'weekly'
   const doc = new jsPDF({
     orientation: landscape ? 'landscape' : 'portrait',
     unit: 'mm',
