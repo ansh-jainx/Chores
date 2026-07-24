@@ -80,7 +80,7 @@ function parseChore(value: unknown): Chore | null {
     return null
   }
 
-  if (hasOwn(value, 'zone')) {
+  if (hasOwn(value, 'zone') && value.zone !== undefined) {
     if (!isBathZone(value.zone)) {
       return null
     }
