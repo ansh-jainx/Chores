@@ -10,11 +10,12 @@ import {
 import { EMPTY_AWAY, fetchDefaultHousehold } from '../lib/defaults'
 import { decodeShareHash, encodeShareHash } from '../lib/share'
 import { clearState, loadState, saveState } from '../lib/storage'
-import type { AwayMap, Household, PersistedState } from '../types'
+import type { AwayMap, CompletionMap, Household, PersistedState } from '../types'
 
 export interface UseHouseholdResult {
   household: Household
   away: AwayMap
+  completions: CompletionMap
   ready: boolean
   syncStatus: SyncStatus
   setHousehold: Dispatch<SetStateAction<Household>>
@@ -26,6 +27,7 @@ export interface UseHouseholdResult {
     until: string,
   ) => void
   removeAbsence: (personId: string, absenceId: string) => void
+  toggleCompletion: (weekKey: string, choreId: string) => void
   resetToDefaults: () => Promise<void>
   copyShareLink: () => Promise<string>
 }
@@ -129,6 +131,7 @@ export function useHousehold(): UseHouseholdResult {
           storedState ?? {
             household: await fetchDefaultHousehold(),
             away: {},
+            completions: {},
           }
 
         if (sharedState !== null) {
@@ -179,6 +182,7 @@ export function useHousehold(): UseHouseholdResult {
                 nextState = {
                   household: await fetchDefaultHousehold(),
                   away: {},
+                  completions: {},
                 }
                 try {
                   lastLocalWriteAtRef.current = await pushCloudState(nextState)
@@ -296,6 +300,7 @@ export function useHousehold(): UseHouseholdResult {
         return {
           household: householdValue,
           away: currentState?.away ?? {},
+          completions: currentState?.completions ?? {},
         }
       })
     },
@@ -311,6 +316,7 @@ export function useHousehold(): UseHouseholdResult {
       return {
         household: currentState?.household ?? INITIAL_HOUSEHOLD,
         away: awayValue,
+        completions: currentState?.completions ?? {},
       }
     })
   }, [])
@@ -341,6 +347,7 @@ export function useHousehold(): UseHouseholdResult {
             ...currentState.away,
             [personId]: [...existing, absence],
           },
+          completions: currentState.completions,
         }
       })
     },
@@ -367,6 +374,44 @@ export function useHousehold(): UseHouseholdResult {
       return {
         household: currentState.household,
         away: nextAway,
+        completions: currentState.completions,
+      }
+    })
+  }, [])
+
+  const toggleCompletion = useCallback((weekKey: string, choreId: string) => {
+    setState((currentState) => {
+      if (currentState === null) {
+        return currentState
+      }
+
+      const currentWeek = new Set(currentState.completions[weekKey] ?? [])
+      if (currentWeek.has(choreId)) {
+        currentWeek.delete(choreId)
+      } else {
+        currentWeek.add(choreId)
+      }
+
+      const nextCompletions: CompletionMap = { ...currentState.completions }
+      const nextIds = Array.from(currentWeek).sort()
+      if (nextIds.length === 0) {
+        delete nextCompletions[weekKey]
+      } else {
+        nextCompletions[weekKey] = nextIds
+      }
+
+      // Keep checklist history bounded.
+      const weekKeys = Object.keys(nextCompletions).sort()
+      if (weekKeys.length > 16) {
+        for (const oldKey of weekKeys.slice(0, weekKeys.length - 16)) {
+          delete nextCompletions[oldKey]
+        }
+      }
+
+      return {
+        household: currentState.household,
+        away: currentState.away,
+        completions: nextCompletions,
       }
     })
   }, [])
@@ -376,6 +421,7 @@ export function useHousehold(): UseHouseholdResult {
     const nextState = {
       household: defaultHousehold,
       away: {},
+      completions: {},
     }
 
     clearState()
@@ -406,16 +452,19 @@ export function useHousehold(): UseHouseholdResult {
 
   const household = state?.household ?? INITIAL_HOUSEHOLD
   const away = state?.away ?? EMPTY_AWAY
+  const completions = state?.completions ?? {}
 
   return {
     household,
     away,
+    completions,
     ready: state !== null,
     syncStatus,
     setHousehold,
     setAway,
     addAbsence,
     removeAbsence,
+    toggleCompletion,
     resetToDefaults,
     copyShareLink,
   }

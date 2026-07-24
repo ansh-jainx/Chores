@@ -23,6 +23,7 @@ const state: PersistedState = {
   away: {
     alex: [{ id: '2026-W30', name: 'Holiday', from: '2026-07-20', until: '2026-07-27' }],
   },
+  completions: {},
 }
 
 describe('storage', () => {

@@ -335,11 +335,24 @@
 
 .my-chore {
   display: grid;
-  gap: 6px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 12px;
+  width: 100%;
   padding: 16px 18px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.86);
   border: 1px solid rgba(15, 118, 110, 0.12);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    opacity 160ms ease;
+}
+
+.my-chore:hover {
+  border-color: rgba(15, 118, 110, 0.28);
 }
 
 .my-chore__name {
@@ -347,6 +360,53 @@
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.1;
+}
+
+.checklist-box {
+  display: inline-grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 2px solid rgba(15, 118, 110, 0.35);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #f8fafc;
+  font-size: 0.85rem;
+  font-weight: 800;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.my-chore .checklist-box {
+  margin-top: 0.35rem;
+}
+
+.checklist-item.is-done .checklist-box {
+  border-color: transparent;
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+}
+
+.checklist-item.is-done .my-chore__name,
+.checklist-item.is-done > span:not(.checklist-box):not(.warning) {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  opacity: 0.62;
+}
+
+.my-chore.is-done {
+  background: rgba(240, 253, 250, 0.72);
+  opacity: 0.88;
+}
+
+.chore-pill.checklist-item {
+  cursor: pointer;
+  border: 1px solid transparent;
+  font: inherit;
+}
+
+.chore-pill.checklist-item.is-done {
+  background: rgba(148, 163, 184, 0.22);
+  color: var(--color-text-muted);
 }
 
 .rest-heading {
