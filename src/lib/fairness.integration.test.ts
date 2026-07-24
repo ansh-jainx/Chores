@@ -42,7 +42,7 @@ function totalCounts(countsByWeek: Map<string, number>[]): number[] {
 describe('scheduleWeek fairness integration', () => {
   it('keeps non-zone chore totals within one assignment over four consecutive weeks', () => {
     const countsByWeek = WEEK_KEYS.map((weekKey) => {
-      const schedule = scheduleWeek(weekKey, FALLBACK_HOUSEHOLD, EMPTY_AWAY)
+      const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
 
       return countAssignments(schedule.assignments, (chore) => chore.zone === undefined)
     })
@@ -64,7 +64,7 @@ describe('scheduleWeek fairness integration', () => {
     expect(upstairsBathroomChores.length).toBeGreaterThan(0)
 
     for (const weekKey of WEEK_KEYS) {
-      const schedule = scheduleWeek(weekKey, FALLBACK_HOUSEHOLD, EMPTY_AWAY)
+      const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
       const upstairsBathroomAssignments = schedule.assignments.filter((assignment) =>
         upstairsBathroomIds.has(assignment.choreId),
       )
