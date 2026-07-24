@@ -303,9 +303,6 @@ function householdWithChores(choreIds: string[]): Household {
   };
 }
 
-function emptyPersonCounts(): Record<string, number> {
-  return Object.fromEntries(basePeople.map(({ id }) => [id, 0]));
-}
 
 function countAssignmentsByPerson(
   assignments: Assignment[],
