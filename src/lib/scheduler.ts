@@ -145,8 +145,9 @@ export function scheduleWeek(
       return left.choreIndex - right.choreIndex
     })
 
-  // Rotate who sits out when there are more people than chores, so free weeks
-  // are shared instead of the same people always working.
+  // Rotate who sits out. With a full 6-person flat we aim for two free people
+  // (stacking a light chore like cardboard), since any assigned chore — including
+  // mid-week cardboard — counts as a chore week, not a free week.
   const freePersonIds = selectFreePersonIds(
     presentPeople,
     dueChores.map(({ chore }) => chore),
@@ -253,16 +254,37 @@ function assignLaterScore(chore: Chore): number {
 }
 
 /**
- * Choose who gets a chore-free week when people outnumber due chores.
- * Rotates by week ordinal and skips picks that would leave a bath zone empty.
+ * How many people should sit out this week.
+ * Full flat (6+ home): prefer 2 free weeks, stacking a light chore if needed.
+ */
+function targetFreeCount(presentCount: number, choreCount: number): number {
+  if (presentCount === 0) {
+    return 0
+  }
+  if (choreCount === 0) {
+    return presentCount
+  }
+
+  const naturalFree = Math.max(0, presentCount - choreCount)
+  const desiredFree = presentCount >= 6 ? Math.max(naturalFree, 2) : naturalFree
+  const minWorkers = Math.min(
+    presentCount,
+    Math.max(1, Math.ceil(choreCount / 2)),
+  )
+  return Math.min(desiredFree, presentCount - minWorkers)
+}
+
+/**
+ * Choose who gets chore-free weeks. Rotates by week ordinal and skips picks
+ * that would leave a required bath zone empty.
  */
 function selectFreePersonIds(
   presentPeople: Person[],
   dueChores: Chore[],
   rotationOrdinal: number,
 ): Set<string> {
-  const freeCount = presentPeople.length - dueChores.length
-  if (freeCount <= 0 || presentPeople.length === 0) {
+  const freeCount = targetFreeCount(presentPeople.length, dueChores.length)
+  if (freeCount <= 0) {
     return new Set()
   }
 
@@ -272,7 +294,7 @@ function selectFreePersonIds(
 
   for (
     let offset = 0;
-    free.size < freeCount && offset < presentPeople.length * 2;
+    free.size < freeCount && offset < presentPeople.length * 3;
     offset += 1
   ) {
     const candidate =
