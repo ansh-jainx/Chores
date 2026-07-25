@@ -424,10 +424,10 @@ function SetupPanel({
           <h3 id="export-heading">Download PDF</h3>
         </div>
         <p className="field-help">
-          Monthly PDF is a grid: chore dates as rows, people as columns. Weekend
-          chores are listed on Saturday (do them Fri/Sat/Sun); cardboard on
-          Wednesday (Tue night / Wed morning). Weekly rota uses the same date
-          range and includes that timing note in the title.
+          Monthly PDF lists every day of each month (people as columns), with
+          chores filled on the days they fall. Default range is about two months
+          — one month per page. Weekend chores on Saturday (do Fri/Sat/Sun);
+          cardboard on Wednesday (Tue night / Wed morning).
         </p>
         <div className="export-form">
           <label className="field">
