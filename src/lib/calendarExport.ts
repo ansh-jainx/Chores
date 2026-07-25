@@ -302,7 +302,25 @@ export function buildMonthlyPersonSchedules(
   })
 }
 
-/** Dates as rows, people as columns — easiest fridge-style monthly view. */
+function listDaysInMonth(year: number, month: number): string[] {
+  const prefix = monthPrefix(year, month)
+  const days: string[] = []
+  let cursor = `${prefix}01`
+
+  while (cursor.startsWith(prefix)) {
+    days.push(cursor)
+    cursor = addDaysToIsoDate(cursor, 1)
+  }
+
+  return days
+}
+
+/**
+ * Full month grid: every calendar day as a row, people as columns.
+ * Chore/holiday cells fill only the days they fall on; other days stay blank.
+ * One month per page keeps the familiar calendar scan; export range can span
+ * multiple months (default ~2).
+ */
 export function buildMonthlyDateGrids(
   household: Household,
   away: AwayMap,
@@ -313,25 +331,33 @@ export function buildMonthlyDateGrids(
     (month) => {
       const rowMap = new Map<string, MonthlyDateGridRow>()
 
+      for (const date of listDaysInMonth(month.year, month.month)) {
+        if (date < from || date > until) {
+          continue
+        }
+        rowMap.set(date, {
+          date,
+          dateLabel: formatChoreDateLabel(date),
+          cells: {},
+        })
+      }
+
       for (const person of month.people) {
         for (const item of person.items) {
           let row = rowMap.get(item.date)
           if (!row) {
-            row = {
-              date: item.date,
-              dateLabel: item.dateLabel,
-              cells: {},
-            }
-            rowMap.set(item.date, row)
+            // Outside the clipped from/until window for this month page.
+            continue
           }
 
           const existing = row.cells[person.personId]
           if (existing) {
             row.cells[person.personId] = {
               text: `${existing.text}; ${item.choreName}`,
-              kind: existing.kind === 'holiday' || item.kind === 'holiday'
-                ? 'holiday'
-                : 'chore',
+              kind:
+                existing.kind === 'holiday' || item.kind === 'holiday'
+                  ? 'holiday'
+                  : 'chore',
               note: existing.note ?? item.note,
             }
           } else {

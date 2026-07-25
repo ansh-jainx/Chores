@@ -160,7 +160,7 @@ function drawMonthlyPdf(
     let y = drawTitleBlock(
       doc,
       `Flat Chores — ${month.label}`,
-      'Dates × people · chore day grid',
+      'Every day × people · chores filled on due days',
       margin,
       usableWidth,
     )
@@ -201,23 +201,28 @@ function drawMonthlyPdf(
     }
 
     for (const row of month.rows) {
+      const hasContent = month.people.some((person) => row.cells[person.id])
       const cellLines = month.people.map((person) => {
         const cell = row.cells[person.id]
         if (!cell) {
-          return ['—']
+          return ['']
         }
         if (cell.kind === 'holiday') {
           return [`Away: ${cell.text}`]
         }
-        return cell.note ? [cell.text, cell.note] : [cell.text]
+        // Keep cardboard note, but prefer a single compact line for dense months.
+        return cell.note ? [`${cell.text}`] : [cell.text]
       })
 
-      const lineHeight = 3.4
-      const padding = 2
+      const lineHeight = 3.1
+      const padding = 1.2
       const maxLines = Math.max(1, ...cellLines.map((lines) => lines.length))
-      const rowHeight = Math.max(8, padding * 2 + maxLines * lineHeight)
+      // Empty weekdays stay compact so a full month fits more naturally.
+      const rowHeight = hasContent
+        ? Math.max(5.8, padding * 2 + maxLines * lineHeight)
+        : 4.6
 
-      if (y + rowHeight > pageHeight - 10) {
+      if (y + rowHeight > pageHeight - 8) {
         doc.addPage()
         y = margin
         doc.setFont('helvetica', 'bold')
@@ -227,17 +232,22 @@ function drawMonthlyPdf(
         drawHeader()
       }
 
-      doc.setDrawColor(209, 213, 219)
+      if (hasContent) {
+        doc.setFillColor(248, 250, 252)
+        doc.rect(margin, y, usableWidth, rowHeight, 'F')
+      }
+
+      doc.setDrawColor(229, 231, 235)
       doc.rect(margin, y, dateCol, rowHeight)
       month.people.forEach((_, index) => {
         const x = margin + dateCol + index * personCol
         doc.rect(x, y, personCol, rowHeight)
       })
 
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(7.5)
-      doc.setTextColor(0)
-      doc.text(row.dateLabel, margin + 1.5, y + 4.5, {
+      doc.setFont('helvetica', hasContent ? 'bold' : 'normal')
+      doc.setFontSize(7)
+      doc.setTextColor(hasContent ? 0 : 140)
+      doc.text(row.dateLabel, margin + 1.5, y + rowHeight / 2 + 1.1, {
         maxWidth: dateCol - 3,
       })
 
@@ -245,10 +255,13 @@ function drawMonthlyPdf(
         const x = margin + dateCol + index * personCol + 1.5
         const cell = row.cells[month.people[index]?.id ?? '']
         doc.setFont('helvetica', 'normal')
-        doc.setFontSize(7)
-        doc.setTextColor(cell?.kind === 'holiday' ? 90 : lines[0] === '—' ? 160 : 0)
+        doc.setFontSize(6.8)
+        doc.setTextColor(cell?.kind === 'holiday' ? 90 : 0)
         lines.forEach((line, lineIndex) => {
-          doc.text(line, x, y + padding + 3 + lineIndex * lineHeight, {
+          if (!line) {
+            return
+          }
+          doc.text(line, x, y + padding + 2.6 + lineIndex * lineHeight, {
             maxWidth: personCol - 3,
           })
         })

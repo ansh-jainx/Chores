@@ -102,14 +102,19 @@ describe('calendar export placement', () => {
     expect(alex?.items.some((item) => item.kind === 'holiday')).toBe(true)
   })
 
-  it('builds a date-row × person-column monthly grid', () => {
+  it('builds a full-month date-row × person-column grid', () => {
     const grids = buildMonthlyDateGrids(household, {}, '2026-07-01', '2026-07-31')
     expect(grids).toHaveLength(1)
     expect(grids[0]?.people.map((person) => person.name)).toEqual([
       'Alex',
       'Sam',
     ])
-    expect(grids[0]?.rows.length).toBeGreaterThan(0)
-    expect(grids[0]?.rows.every((row) => Boolean(row.dateLabel))).toBe(true)
+    // Every day in July, not only chore days.
+    expect(grids[0]?.rows).toHaveLength(31)
+    expect(grids[0]?.rows[0]?.date).toBe('2026-07-01')
+    expect(grids[0]?.rows[30]?.date).toBe('2026-07-31')
+    expect(grids[0]?.rows.some((row) => Object.keys(row.cells).length > 0)).toBe(
+      true,
+    )
   })
 })
