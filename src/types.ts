@@ -63,9 +63,17 @@ export interface WeekSchedule {
 /** weekKey -> completed choreIds for that week */
 export type CompletionMap = Record<string, string[]>;
 
+/** choreId -> personId for one manually seeded / locked week */
+export type WeekAssignmentOverride = Record<string, string>;
+
+/** weekKey -> manual assignments; scheduler uses these as-is and as rotation history */
+export type WeekOverrideMap = Record<string, WeekAssignmentOverride>;
+
 export interface PersistedState {
   household: Household;
   away: AwayMap;
   /** Checklist ticks, keyed by ISO week */
   completions: CompletionMap;
+  /** Optional locked weeks (e.g. first two) that later auto weeks rotate from */
+  overrides: WeekOverrideMap;
 }

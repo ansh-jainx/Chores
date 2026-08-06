@@ -35,6 +35,7 @@ const state: PersistedState = {
     sam: [{ id: '2026-W30', name: 'Holiday', from: '2026-07-20', until: '2026-07-27' }],
   },
   completions: {},
+  overrides: {},
 }
 
 function encodeRawShareHash(value: unknown): string {

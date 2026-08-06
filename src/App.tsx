@@ -39,9 +39,11 @@ function App() {
     syncStatus,
     setHousehold,
     setAway,
+    setOverrides,
     addAbsence,
     removeAbsence,
     completions,
+    overrides,
     toggleCompletion,
     resetToDefaults,
     copyShareLink,
@@ -119,8 +121,10 @@ function App() {
           household={household}
           away={away}
           completions={completions}
+          overrides={overrides}
           onChange={setHousehold}
           onAwayChange={setAway}
+          onOverridesChange={setOverrides}
           onReset={resetToDefaults}
           onCopyShareLink={copyShareLink}
         />
@@ -132,6 +136,7 @@ function App() {
         household={household}
         away={away}
         completions={completions}
+        overrides={overrides}
         weekKey={weekKey}
         onWeekChange={setWeekKey}
         onToggleCompletion={toggleCompletion}
@@ -222,6 +227,7 @@ function App() {
           <PrintCalendar
             household={household}
             away={away}
+            overrides={overrides}
             fromWeekKey={weekKey}
           />
         </div>

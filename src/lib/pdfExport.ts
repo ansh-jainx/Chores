@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf'
-import type { AwayMap, Household } from '../types'
+import type { AwayMap, Household, WeekOverrideMap } from '../types'
 import {
   buildMonthlyDateGrids,
   buildWeeklyExport,
@@ -43,8 +43,9 @@ function drawWeeklyPdf(
   away: AwayMap,
   from: string,
   until: string,
+  overrides: WeekOverrideMap = {},
 ) {
-  const rows = buildWeeklyExport(household, away, from, until)
+  const rows = buildWeeklyExport(household, away, from, until, overrides)
   const people = household.people
   const margin = 12
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -145,8 +146,9 @@ function drawMonthlyPdf(
   away: AwayMap,
   from: string,
   until: string,
+  overrides: WeekOverrideMap = {},
 ) {
-  const months = buildMonthlyDateGrids(household, away, from, until)
+  const months = buildMonthlyDateGrids(household, away, from, until, overrides)
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 10
@@ -278,8 +280,9 @@ export async function downloadChoresPdf(options: {
   format: ExportFormat
   from: string
   until: string
+  overrides?: WeekOverrideMap
 }): Promise<void> {
-  const { household, away, format, from, until } = options
+  const { household, away, format, from, until, overrides = {} } = options
   if (until < from) {
     throw new Error('End date must be on or after the start date.')
   }
@@ -292,9 +295,9 @@ export async function downloadChoresPdf(options: {
   })
 
   if (format === 'monthly') {
-    drawMonthlyPdf(doc, household, away, from, until)
+    drawMonthlyPdf(doc, household, away, from, until, overrides)
   } else {
-    drawWeeklyPdf(doc, household, away, from, until)
+    drawWeeklyPdf(doc, household, away, from, until, overrides)
   }
 
   const blob = doc.output('blob')

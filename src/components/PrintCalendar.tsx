@@ -1,4 +1,4 @@
-import type { AwayMap, Household } from '../types'
+import type { AwayMap, Household, WeekOverrideMap } from '../types'
 import {
   buildPrintCalendar,
   DEFAULT_PRINT_WEEKS,
@@ -7,6 +7,7 @@ import {
 export interface PrintCalendarProps {
   household: Household
   away: AwayMap
+  overrides?: WeekOverrideMap
   fromWeekKey: string
   weekCount?: number
 }
@@ -14,10 +15,17 @@ export interface PrintCalendarProps {
 export function PrintCalendar({
   household,
   away,
+  overrides = {},
   fromWeekKey,
   weekCount = DEFAULT_PRINT_WEEKS,
 }: PrintCalendarProps) {
-  const rows = buildPrintCalendar(household, away, fromWeekKey, weekCount)
+  const rows = buildPrintCalendar(
+    household,
+    away,
+    fromWeekKey,
+    weekCount,
+    overrides,
+  )
   const people = household.people
 
   return (

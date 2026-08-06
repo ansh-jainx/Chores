@@ -1,4 +1,4 @@
-import type { Assignment, AwayMap, Household } from '../types'
+import type { Assignment, AwayMap, Household, WeekOverrideMap } from '../types'
 import { isAway, scheduleWeek } from './scheduler'
 import { buildPrintCalendar, type PrintWeekRow } from './printCalendar'
 import {
@@ -215,12 +215,13 @@ export function buildMonthlyPersonSchedules(
   away: AwayMap,
   from: string,
   until: string,
+  overrides: WeekOverrideMap = {},
 ): MonthlyPersonExport[] {
   type RawItem = PersonChoreDate & { personId: string }
   const allItems: RawItem[] = []
 
   for (const weekKey of weekKeysOverlappingRange(from, until)) {
-    const schedule = scheduleWeek(household, away, weekKey)
+    const schedule = scheduleWeek(household, away, weekKey, { overrides })
     const placed = placeWeekAssignmentsOnDays(
       weekKey,
       schedule.assignments,
@@ -326,8 +327,9 @@ export function buildMonthlyDateGrids(
   away: AwayMap,
   from: string,
   until: string,
+  overrides: WeekOverrideMap = {},
 ): MonthlyDateGrid[] {
-  return buildMonthlyPersonSchedules(household, away, from, until).map(
+  return buildMonthlyPersonSchedules(household, away, from, until, overrides).map(
     (month) => {
       const rowMap = new Map<string, MonthlyDateGridRow>()
 
@@ -393,6 +395,7 @@ export function buildWeeklyExport(
   away: AwayMap,
   from: string,
   until: string,
+  overrides: WeekOverrideMap = {},
 ): PrintWeekRow[] {
   const weekKeys = weekKeysOverlappingRange(from, until)
   if (weekKeys.length === 0) {
@@ -400,9 +403,13 @@ export function buildWeeklyExport(
   }
 
   const first = weekKeys[0]
-  return buildPrintCalendar(household, away, first, weekKeys.length).filter(
-    (row) => weekKeys.includes(row.weekKey),
-  )
+  return buildPrintCalendar(
+    household,
+    away,
+    first,
+    weekKeys.length,
+    overrides,
+  ).filter((row) => weekKeys.includes(row.weekKey))
 }
 
 export function defaultExportRange(now = new Date()): {

@@ -12,6 +12,7 @@ const state: PersistedState = {
     alex: [{ id: '2026-W30', name: 'Holiday', from: '2026-07-20', until: '2026-07-27' }],
   },
   completions: {},
+  overrides: {},
 }
 
 describe('parsePersistedState', () => {
@@ -58,6 +59,30 @@ describe('parsePersistedState', () => {
         completions: { notAWeek: ['kitchen'] },
       }),
     ).toBeNull()
+  })
+
+  it('defaults missing overrides to an empty map', () => {
+    expect(
+      parsePersistedState({
+        household: state.household,
+        away: state.away,
+        completions: {},
+      }),
+    ).toEqual(state)
+  })
+
+  it('parses seeded week overrides', () => {
+    expect(
+      parsePersistedState({
+        household: state.household,
+        away: state.away,
+        completions: {},
+        overrides: { '2026-W30': { kitchen: 'alex' } },
+      }),
+    ).toEqual({
+      ...state,
+      overrides: { '2026-W30': { kitchen: 'alex' } },
+    })
   })
 
   it('rejects objects with unexpected prototypes', () => {

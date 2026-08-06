@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { awayDaysInWeek, isAway, peoplePresent, scheduleWeek } from './scheduler';
+import { FALLBACK_HOUSEHOLD } from './defaults';
 import type { Assignment, AwayMap, Household } from '../types';
 
 const basePeople: Household['people'] = [
@@ -305,6 +306,37 @@ describe('scheduleWeek', () => {
     expect(scheduleWeek(household, away, '2026-W30')).toEqual(
       scheduleWeek(household, away, '2026-W30'),
     );
+  });
+
+  it('uses seeded overrides as locked weeks and rotation history', () => {
+    const overrides = {
+      '2026-W30': {
+        'bath-up': 'person-1',
+        'bath-down': 'person-2',
+        kitchen: 'person-3',
+        hallway: 'person-5',
+        cardboard: 'person-4',
+      },
+      '2026-W31': {
+        'bath-up': 'person-3',
+        'bath-down': 'person-4',
+        kitchen: 'person-6',
+        towels: 'person-5',
+        pag: 'person-1',
+      },
+    };
+
+    const locked = scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W30', { overrides });
+    expect(
+      Object.fromEntries(
+        locked.assignments.map((item) => [item.choreId, item.personId]),
+      ),
+    ).toEqual(overrides['2026-W30']);
+
+    // Week after the seed should not repeat kitchen from the locked week.
+    const next = scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W32', { overrides });
+    const kitchen = next.assignments.find((item) => item.choreId === 'kitchen');
+    expect(kitchen?.personId).not.toBe('person-3');
   });
 });
 

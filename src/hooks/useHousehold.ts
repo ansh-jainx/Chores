@@ -10,16 +10,24 @@ import {
 import { EMPTY_AWAY, fetchDefaultHousehold } from '../lib/defaults'
 import { decodeShareHash, encodeShareHash } from '../lib/share'
 import { clearState, loadState, saveState } from '../lib/storage'
-import type { AwayMap, CompletionMap, Household, PersistedState } from '../types'
+import type {
+  AwayMap,
+  CompletionMap,
+  Household,
+  PersistedState,
+  WeekOverrideMap,
+} from '../types'
 
 export interface UseHouseholdResult {
   household: Household
   away: AwayMap
   completions: CompletionMap
+  overrides: WeekOverrideMap
   ready: boolean
   syncStatus: SyncStatus
   setHousehold: Dispatch<SetStateAction<Household>>
   setAway: Dispatch<SetStateAction<AwayMap>>
+  setOverrides: Dispatch<SetStateAction<WeekOverrideMap>>
   addAbsence: (
     personId: string,
     name: string,
@@ -30,6 +38,25 @@ export interface UseHouseholdResult {
   toggleCompletion: (weekKey: string, choreId: string) => void
   resetToDefaults: () => Promise<void>
   copyShareLink: () => Promise<string>
+}
+
+function withOverrides(state: PersistedState): PersistedState {
+  return {
+    ...state,
+    overrides: state.overrides ?? {},
+  }
+}
+
+function baseState(
+  current: PersistedState | null,
+  patch: Partial<PersistedState>,
+): PersistedState {
+  return {
+    household: patch.household ?? current?.household ?? INITIAL_HOUSEHOLD,
+    away: patch.away ?? current?.away ?? {},
+    completions: patch.completions ?? current?.completions ?? {},
+    overrides: patch.overrides ?? current?.overrides ?? {},
+  }
 }
 
 const SHARE_HASH_PREFIX = '#s='
@@ -126,16 +153,18 @@ export function useHousehold(): UseHouseholdResult {
       }
 
       if (!cloudReady) {
-        const nextState =
+        const nextState = withOverrides(
           sharedState ??
-          storedState ?? {
-            household: await fetchDefaultHousehold(),
-            away: {},
-            completions: {},
-          }
+            storedState ?? {
+              household: await fetchDefaultHousehold(),
+              away: {},
+              completions: {},
+              overrides: {},
+            },
+        )
 
         if (sharedState !== null) {
-          persistLocal(sharedState)
+          persistLocal(nextState)
           clearShareHash()
         }
 
@@ -161,10 +190,10 @@ export function useHousehold(): UseHouseholdResult {
               let nextState: PersistedState
 
               if (payload !== null) {
-                nextState = payload.state
+                nextState = withOverrides(payload.state)
                 lastLocalWriteAtRef.current = payload.updatedAt
               } else if (sharedState !== null) {
-                nextState = sharedState
+                nextState = withOverrides(sharedState)
                 clearShareHash()
                 try {
                   lastLocalWriteAtRef.current = await pushCloudState(nextState)
@@ -172,7 +201,7 @@ export function useHousehold(): UseHouseholdResult {
                   setSyncStatus('error')
                 }
               } else if (storedState !== null) {
-                nextState = storedState
+                nextState = withOverrides(storedState)
                 try {
                   lastLocalWriteAtRef.current = await pushCloudState(nextState)
                 } catch {
@@ -183,6 +212,7 @@ export function useHousehold(): UseHouseholdResult {
                   household: await fetchDefaultHousehold(),
                   away: {},
                   completions: {},
+                  overrides: {},
                 }
                 try {
                   lastLocalWriteAtRef.current = await pushCloudState(nextState)
@@ -216,8 +246,9 @@ export function useHousehold(): UseHouseholdResult {
             return
           }
 
+          const remoteState = withOverrides(payload.state)
           const current = stateRef.current
-          if (current !== null && sameState(current, payload.state)) {
+          if (current !== null && sameState(current, remoteState)) {
             lastLocalWriteAtRef.current = payload.updatedAt
             setSyncStatus('synced')
             return
@@ -226,8 +257,8 @@ export function useHousehold(): UseHouseholdResult {
           lastLocalWriteAtRef.current = payload.updatedAt
           applyingRemoteRef.current = true
           skipNextLocalPersistRef.current = true
-          setState(payload.state)
-          persistLocal(payload.state)
+          setState(remoteState)
+          persistLocal(remoteState)
           setSyncStatus('synced')
         },
         () => {
@@ -297,11 +328,7 @@ export function useHousehold(): UseHouseholdResult {
             ? nextHousehold(currentHousehold)
             : nextHousehold
 
-        return {
-          household: householdValue,
-          away: currentState?.away ?? {},
-          completions: currentState?.completions ?? {},
-        }
+        return baseState(currentState, { household: householdValue })
       })
     },
     [],
@@ -313,13 +340,24 @@ export function useHousehold(): UseHouseholdResult {
       const awayValue =
         typeof nextAway === 'function' ? nextAway(currentAway) : nextAway
 
-      return {
-        household: currentState?.household ?? INITIAL_HOUSEHOLD,
-        away: awayValue,
-        completions: currentState?.completions ?? {},
-      }
+      return baseState(currentState, { away: awayValue })
     })
   }, [])
+
+  const setOverrides = useCallback<Dispatch<SetStateAction<WeekOverrideMap>>>(
+    (nextOverrides) => {
+      setState((currentState) => {
+        const currentOverrides = currentState?.overrides ?? {}
+        const overridesValue =
+          typeof nextOverrides === 'function'
+            ? nextOverrides(currentOverrides)
+            : nextOverrides
+
+        return baseState(currentState, { overrides: overridesValue })
+      })
+    },
+    [],
+  )
 
   const addAbsence = useCallback(
     (personId: string, name: string, from: string, until: string) => {
@@ -341,14 +379,12 @@ export function useHousehold(): UseHouseholdResult {
         }
         const existing = currentState.away[personId] ?? []
 
-        return {
-          household: currentState.household,
+        return baseState(currentState, {
           away: {
             ...currentState.away,
             [personId]: [...existing, absence],
           },
-          completions: currentState.completions,
-        }
+        })
       })
     },
     [],
@@ -371,11 +407,7 @@ export function useHousehold(): UseHouseholdResult {
         nextAway[personId] = remaining
       }
 
-      return {
-        household: currentState.household,
-        away: nextAway,
-        completions: currentState.completions,
-      }
+      return baseState(currentState, { away: nextAway })
     })
   }, [])
 
@@ -408,11 +440,7 @@ export function useHousehold(): UseHouseholdResult {
         }
       }
 
-      return {
-        household: currentState.household,
-        away: currentState.away,
-        completions: nextCompletions,
-      }
+      return baseState(currentState, { completions: nextCompletions })
     })
   }, [])
 
@@ -422,6 +450,7 @@ export function useHousehold(): UseHouseholdResult {
       household: defaultHousehold,
       away: {},
       completions: {},
+      overrides: {},
     }
 
     clearState()
@@ -453,15 +482,18 @@ export function useHousehold(): UseHouseholdResult {
   const household = state?.household ?? INITIAL_HOUSEHOLD
   const away = state?.away ?? EMPTY_AWAY
   const completions = state?.completions ?? {}
+  const overrides = state?.overrides ?? {}
 
   return {
     household,
     away,
     completions,
+    overrides,
     ready: state !== null,
     syncStatus,
     setHousehold,
     setAway,
+    setOverrides,
     addAbsence,
     removeAbsence,
     toggleCompletion,

@@ -6,6 +6,8 @@ import type {
   Effort,
   Household,
   Person,
+  WeekAssignmentOverride,
+  WeekOverrideMap,
   WeekSchedule,
 } from '../types'
 import { AWAY_DAY_THRESHOLD } from '../types'
@@ -22,10 +24,12 @@ import {
 
 type ScheduleOptions = {
   /**
-   * When true (default), avoid giving the same non-light chore to the person
-   * who had it on the previous occurrence if another candidate is available.
+   * When true (default), avoid giving the same chore to the person who had it
+   * on the previous occurrence if another candidate is available.
    */
   avoidConsecutive?: boolean
+  /** Locked weeks (seed / manual). Used as assignments and as rotation history. */
+  overrides?: WeekOverrideMap
 }
 
 /** How far back consecutive-avoidance may recurse when resolving prior weeks. */
@@ -129,6 +133,97 @@ export function scheduleWeek(
   )
 }
 
+/** Chores that fall on this ISO week (weekly + due biweekly half). */
+export function choresDueInWeek(
+  household: Household,
+  weekKey: string,
+): Chore[] {
+  return dueChoreEntries(household, weekKey).map(({ chore }) => chore)
+}
+
+function dueChoreEntries(
+  household: Household,
+  weekKey: string,
+): Array<{ chore: Chore; choreIndex: number }> {
+  const { week: weekNumber } = parseWeekKey(weekKey)
+  const biweeklyPhases = new Map<string, number>()
+  household.chores
+    .filter((chore) => chore.cadence === 'biweekly')
+    .forEach((chore, index) => {
+      biweeklyPhases.set(
+        chore.id,
+        BIWEEKLY_PAIR_PHASE[chore.id] ?? index % 2,
+      )
+    })
+
+  return household.chores
+    .map((chore, choreIndex) => ({ chore, choreIndex }))
+    .filter(({ chore }) => {
+      if (chore.cadence !== 'biweekly') {
+        return true
+      }
+
+      const phase = biweeklyPhases.get(chore.id) ?? 0
+      const targetParity = (phase + household.biweeklyParity) % 2
+      return weekNumber % 2 === targetParity
+    })
+    .sort((left, right) => {
+      const stackDelta =
+        assignLaterScore(left.chore) - assignLaterScore(right.chore)
+      if (stackDelta !== 0) {
+        return stackDelta
+      }
+      return left.choreIndex - right.choreIndex
+    })
+}
+
+function materializeOverrideSchedule(
+  household: Household,
+  away: AwayMap,
+  weekKey: string,
+  override: WeekAssignmentOverride,
+): WeekSchedule {
+  const peopleById = new Map(
+    household.people.map((person) => [person.id, person]),
+  )
+  const order = new Map(household.chores.map((chore, index) => [chore.id, index]))
+  const assignments: Assignment[] = []
+
+  for (const chore of choresDueInWeek(household, weekKey)) {
+    const personId = override[chore.id]
+    if (personId === undefined) {
+      continue
+    }
+    const person = peopleById.get(personId)
+    if (person === undefined) {
+      continue
+    }
+
+    const warnings: string[] = []
+    if (isAway(away, person.id, weekKey)) {
+      warnings.push('Person is on holiday this week')
+    }
+    if (chore.zone && person.bathZone !== chore.zone) {
+      warnings.push(`Zone spill: ${chore.name} usually needs bath-${chore.zone}`)
+    }
+
+    assignments.push({
+      choreId: chore.id,
+      choreName: chore.name,
+      personId: person.id,
+      personName: person.name,
+      effort: choreEffort(chore),
+      ...(warnings.length > 0 ? { warning: warnings.join(' · ') } : {}),
+    })
+  }
+
+  assignments.sort(
+    (left, right) => (order.get(left.choreId) ?? 0) - (order.get(right.choreId) ?? 0),
+  )
+
+  return { weekKey, assignments }
+}
+
 function scheduleWeekInternal(
   household: Household,
   away: AwayMap,
@@ -139,13 +234,27 @@ function scheduleWeekInternal(
 ): WeekSchedule {
   const avoidConsecutive =
     options?.avoidConsecutive !== false && lookbackDepth > 0
-  const memoKey = `${weekKey}|${avoidConsecutive ? '1' : '0'}`
+  const weekOverride = options?.overrides?.[weekKey]
+  const memoKey =
+    weekOverride !== undefined
+      ? `${weekKey}|override|${JSON.stringify(weekOverride)}`
+      : `${weekKey}|${avoidConsecutive ? '1' : '0'}`
   const cached = memo.get(memoKey)
   if (cached !== undefined) {
     return cached
   }
 
-  const { week: weekNumber } = parseWeekKey(weekKey)
+  if (weekOverride !== undefined) {
+    const locked = materializeOverrideSchedule(
+      household,
+      away,
+      weekKey,
+      weekOverride,
+    )
+    memo.set(memoKey, locked)
+    return locked
+  }
+
   const rotationOrdinal = weekOrdinal(weekKey)
   const presentPeople = peoplePresent(household, away, weekKey)
   const heavyCountByPerson: Map<string, number> = new Map(
@@ -162,36 +271,7 @@ function scheduleWeekInternal(
     return empty
   }
 
-  const biweeklyPhases = new Map<string, number>()
-  household.chores
-    .filter((chore) => chore.cadence === 'biweekly')
-    .forEach((chore, index) => {
-      biweeklyPhases.set(
-        chore.id,
-        BIWEEKLY_PAIR_PHASE[chore.id] ?? index % 2,
-      )
-    })
-
-  const dueChores = household.chores
-    .map((chore, choreIndex) => ({ chore, choreIndex }))
-    .filter(({ chore }) => {
-      if (chore.cadence !== 'biweekly') {
-        return true
-      }
-
-      const phase = biweeklyPhases.get(chore.id) ?? 0
-      const targetParity = (phase + household.biweeklyParity) % 2
-      return weekNumber % 2 === targetParity
-    })
-    .sort((left, right) => {
-      // Assign "first chore" jobs early; preferred second chores (cardboard, …) last.
-      const stackDelta =
-        assignLaterScore(left.chore) - assignLaterScore(right.chore)
-      if (stackDelta !== 0) {
-        return stackDelta
-      }
-      return left.choreIndex - right.choreIndex
-    })
+  const dueChores = dueChoreEntries(household, weekKey)
 
   // One free person when people outnumber chores (6 people / 5 chores → 1 free).
   // Free weeks rotate; cardboard/towels also rotate so each person gets one
@@ -206,14 +286,14 @@ function scheduleWeekInternal(
   )
 
   // Who held each due chore on its previous occurrence (week -1 or -2).
-  // Used so kitchen/hallway/baths cannot stick to the same person back-to-back
-  // when another eligible person is free.
+  // Seeded override weeks count as history so auto weeks continue from them.
   const previousByChore = avoidConsecutive
     ? previousAssignees(
         household,
         away,
         weekKey,
         dueChores.map(({ chore }) => chore),
+        options,
         memo,
         lookbackDepth - 1,
       )
@@ -257,10 +337,8 @@ function scheduleWeekInternal(
       (person) => (choreCountByPerson.get(person.id) ?? 0) === minChores,
     )
 
-    // Non-light chores: skip last occurrence's assignee when someone else can take it.
-    const previousId = isLightSideChore(chore)
-      ? undefined
-      : previousByChore.get(chore.id)
+    // Skip last occurrence's assignee when someone else can take it.
+    const previousId = previousByChore.get(chore.id)
     if (previousId !== undefined && candidates.length > 1) {
       const withoutPrevious = candidates.filter(
         (person) => person.id !== previousId,
@@ -283,13 +361,9 @@ function scheduleWeekInternal(
           )
 
     // Zone/leftover cases can still force a repeat (e.g. only one bath-down
-    // person left). Swap with an earlier non-light assignment when possible
-    // so we rotate without creating a second free person.
-    if (
-      previousId !== undefined &&
-      person.id === previousId &&
-      !isLightSideChore(chore)
-    ) {
+    // person left). Swap with an earlier assignment when possible so we
+    // rotate without creating a second free person.
+    if (previousId !== undefined && person.id === previousId) {
       const swapped = stealAssignmentToAvoidRepeat(
         chore,
         previousId,
@@ -470,13 +544,14 @@ function lastOccurrenceWeekKey(weekKey: string, chore: Chore): string {
 
 /**
  * Map choreId → personId from each chore's previous occurrence.
- * Recurses with avoidConsecutive:false so we do not walk infinitely.
+ * Lookback is depth-bounded and memoized; seeded override weeks count.
  */
 function previousAssignees(
   household: Household,
   away: AwayMap,
   weekKey: string,
   dueChores: Chore[],
+  options: ScheduleOptions | undefined,
   memo: Map<string, WeekSchedule>,
   lookbackDepth: number,
 ): Map<string, string> {
@@ -484,9 +559,6 @@ function previousAssignees(
   const choresByPrevWeek = new Map<string, Chore[]>()
 
   for (const chore of dueChores) {
-    if (isLightSideChore(chore)) {
-      continue
-    }
     const prevKey = lastOccurrenceWeekKey(weekKey, chore)
     const list = choresByPrevWeek.get(prevKey) ?? []
     list.push(chore)
@@ -494,13 +566,13 @@ function previousAssignees(
   }
 
   for (const [prevKey, chores] of choresByPrevWeek) {
-    // Shared memo + bounded depth so lookback sees real swaps without
+    // Shared memo + bounded depth so lookback sees real swaps / seeds without
     // walking the calendar back to year 0.
     const previous = scheduleWeekInternal(
       household,
       away,
       prevKey,
-      { avoidConsecutive: true },
+      { ...options, avoidConsecutive: true },
       memo,
       lookbackDepth,
     )

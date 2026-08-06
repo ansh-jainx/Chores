@@ -9,6 +9,8 @@ import type {
   Household,
   PersistedState,
   Person,
+  WeekAssignmentOverride,
+  WeekOverrideMap,
 } from '../types'
 import { weekEndExclusiveDate, weekStartDate } from './weeks'
 
@@ -303,6 +305,44 @@ function parseCompletions(value: unknown): CompletionMap | null {
   return completions
 }
 
+function parseOverrides(value: unknown): WeekOverrideMap | null {
+  if (value === undefined) {
+    return {}
+  }
+
+  if (!isPlainObject(value) || hasUnsafeOwnKey(value)) {
+    return null
+  }
+
+  const overrides: WeekOverrideMap = {}
+
+  for (const [weekKey, weekValue] of Object.entries(value)) {
+    if (UNSAFE_KEYS.has(weekKey) || !isWeekKey(weekKey)) {
+      return null
+    }
+
+    if (!isPlainObject(weekValue) || hasUnsafeOwnKey(weekValue)) {
+      return null
+    }
+
+    const weekOverride: WeekAssignmentOverride = {}
+    for (const [choreId, personId] of Object.entries(weekValue)) {
+      if (
+        UNSAFE_KEYS.has(choreId) ||
+        typeof personId !== 'string' ||
+        UNSAFE_KEYS.has(personId)
+      ) {
+        return null
+      }
+      weekOverride[choreId] = personId
+    }
+
+    overrides[weekKey] = weekOverride
+  }
+
+  return overrides
+}
+
 export function parsePersistedState(value: unknown): PersistedState | null {
   if (!isPlainObject(value) || hasUnsafeOwnKey(value)) {
     return null
@@ -317,8 +357,16 @@ export function parsePersistedState(value: unknown): PersistedState | null {
   const completions = parseCompletions(
     hasOwn(value, 'completions') ? value.completions : undefined,
   )
+  const overrides = parseOverrides(
+    hasOwn(value, 'overrides') ? value.overrides : undefined,
+  )
 
-  if (household === null || away === null || completions === null) {
+  if (
+    household === null ||
+    away === null ||
+    completions === null ||
+    overrides === null
+  ) {
     return null
   }
 
@@ -326,5 +374,6 @@ export function parsePersistedState(value: unknown): PersistedState | null {
     household,
     away,
     completions,
+    overrides,
   }
 }

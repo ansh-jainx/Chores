@@ -1,4 +1,4 @@
-import type { AwayMap, Household } from '../types'
+import type { AwayMap, Household, WeekOverrideMap } from '../types'
 import { isAway, scheduleWeek } from './scheduler'
 import {
   formatWeekLabel,
@@ -40,11 +40,12 @@ export function buildPrintCalendar(
   away: AwayMap,
   fromWeekKey: string,
   weekCount = DEFAULT_PRINT_WEEKS,
+  overrides: WeekOverrideMap = {},
 ): PrintWeekRow[] {
   const weekKeys = listUpcomingWeekKeys(fromWeekKey, weekCount)
 
   return weekKeys.map((weekKey) => {
-    const schedule = scheduleWeek(household, away, weekKey)
+    const schedule = scheduleWeek(household, away, weekKey, { overrides })
     const choresByPerson = new Map<string, string[]>()
 
     for (const assignment of schedule.assignments) {

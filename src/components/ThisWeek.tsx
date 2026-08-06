@@ -6,6 +6,7 @@ import type {
   CompletionMap,
   Household,
   Person,
+  WeekOverrideMap,
   WeekSchedule,
 } from '../types'
 import { awayDaysInWeek, isAway as personIsAway, scheduleWeek } from '../lib/scheduler'
@@ -15,6 +16,7 @@ export interface ThisWeekProps {
   household: Household
   away: AwayMap
   completions: CompletionMap
+  overrides?: WeekOverrideMap
   weekKey: string
   onWeekChange?: (weekKey: string) => void
   onToggleCompletion: (weekKey: string, choreId: string) => void
@@ -69,6 +71,7 @@ function getWeekSchedule(
   household: Household,
   away: AwayMap,
   weekKey: string,
+  overrides: WeekOverrideMap = {},
 ): WeekSchedule {
   if (
     household.people.length === 0 ||
@@ -80,7 +83,7 @@ function getWeekSchedule(
     }
   }
 
-  return scheduleWeek(household, away, weekKey)
+  return scheduleWeek(household, away, weekKey, { overrides })
 }
 
 function formatAssignmentCount(count: number) {
@@ -115,6 +118,7 @@ export function ThisWeek({
   household,
   away,
   completions,
+  overrides = {},
   weekKey,
   onWeekChange,
   onToggleCompletion,
@@ -146,11 +150,12 @@ export function ThisWeek({
     }
   }, [viewerId])
 
-  const thisWeek = getWeekSchedule(household, away, weekKey)
+  const thisWeek = getWeekSchedule(household, away, weekKey, overrides)
   const previousWeekKey = addWeeks(weekKey, -1)
   const nextWeekKey = addWeeks(weekKey, 1)
   const todayWeekKey = currentWeekKey()
-  const nextWeek = getWeekSchedule(household, away, nextWeekKey)
+  const nextWeek = getWeekSchedule(household, away, nextWeekKey, overrides)
+  const isSeededWeek = overrides[weekKey] !== undefined
   const isEveryoneAwayThisWeek = everyoneIsAway(household.people, away, weekKey)
 
   const thisWeekByPerson = assignmentsForPeople(
@@ -235,6 +240,12 @@ export function ThisWeek({
                   <li key={person.id}>{label}</li>
                 ))}
               </ul>
+            </aside>
+          ) : null}
+
+          {isSeededWeek ? (
+            <aside className="seed-banner" role="status">
+              Manual start week — later weeks rotate from this assignment.
             </aside>
           ) : null}
 

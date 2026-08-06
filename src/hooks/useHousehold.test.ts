@@ -69,6 +69,7 @@ const storedState: PersistedState = {
     ],
   },
   completions: {},
+  overrides: {},
 }
 
 const mockedFetchDefaultHousehold = vi.mocked(fetchDefaultHousehold)
@@ -146,11 +147,13 @@ describe('useHousehold', () => {
     expect(result.current.household).toEqual(defaultHousehold)
     expect(result.current.away).toEqual({})
     expect(result.current.completions).toEqual({})
+    expect(result.current.overrides).toEqual({})
     expect(localStorage.getItem(STORAGE_KEY)).toEqual(
       JSON.stringify({
         household: defaultHousehold,
         away: {},
         completions: {},
+        overrides: {},
       }),
     )
 
@@ -181,6 +184,7 @@ describe('useHousehold', () => {
           ],
         },
         completions: {},
+        overrides: {},
       }),
     )
   })

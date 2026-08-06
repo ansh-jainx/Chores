@@ -13,14 +13,18 @@ import type {
   CompletionMap,
   Household,
   Person,
+  WeekOverrideMap,
 } from '../types'
+import SeedRotaPanel from './SeedRotaPanel'
 
 interface SetupPanelProps {
   household: Household
   away: AwayMap
   completions: CompletionMap
+  overrides: WeekOverrideMap
   onChange: (household: Household) => void
   onAwayChange: (away: AwayMap) => void
+  onOverridesChange: (overrides: WeekOverrideMap) => void
   onReset: () => void
   onCopyShareLink: () => Promise<string>
 }
@@ -65,8 +69,10 @@ function SetupPanel({
   household,
   away,
   completions,
+  overrides,
   onChange,
   onAwayChange,
+  onOverridesChange,
   onReset,
   onCopyShareLink,
 }: SetupPanelProps) {
@@ -96,6 +102,7 @@ function SetupPanel({
         format: exportFormat,
         from: exportFrom,
         until: exportUntil,
+        overrides,
       })
       setExportStatus('done')
       window.setTimeout(() => setExportStatus('idle'), 1800)
@@ -150,6 +157,20 @@ function SetupPanel({
       delete nextAway[personId]
       onAwayChange(nextAway)
     }
+
+    if (Object.keys(overrides).length > 0) {
+      const nextOverrides: WeekOverrideMap = {}
+      for (const [weekKey, weekOverride] of Object.entries(overrides)) {
+        const cleaned: WeekOverrideMap[string] = {}
+        for (const [choreId, assignedId] of Object.entries(weekOverride)) {
+          if (assignedId !== personId) {
+            cleaned[choreId] = assignedId
+          }
+        }
+        nextOverrides[weekKey] = cleaned
+      }
+      onOverridesChange(nextOverrides)
+    }
   }
 
   const finalizePersonName = (personId: string, value: string) => {
@@ -203,7 +224,12 @@ function SetupPanel({
       return ''
     }
 
-    const shareHash = encodeShareHash({ household, away, completions })
+    const shareHash = encodeShareHash({
+      household,
+      away,
+      completions,
+      overrides,
+    })
     const url = new URL(window.location.href)
     url.hash = shareHash.startsWith('#') ? shareHash : `#${shareHash}`
 
@@ -245,10 +271,17 @@ function SetupPanel({
         <div>
           <h2 id="setup-heading">Setup</h2>
           <p className="setup-panel__note">
-            Share a one-time snapshot, or download a PDF rota for a date range.
+            Seed the first two weeks, share a snapshot, or download a PDF rota.
           </p>
         </div>
       </div>
+
+      <SeedRotaPanel
+        household={household}
+        away={away}
+        overrides={overrides}
+        onOverridesChange={onOverridesChange}
+      />
 
       <section className="setup-section" aria-labelledby="setup-people-heading">
         <div className="setup-section__header">
