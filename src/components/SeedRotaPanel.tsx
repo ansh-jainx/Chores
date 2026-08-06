@@ -5,11 +5,12 @@ import type {
   WeekAssignmentOverride,
   WeekOverrideMap,
 } from '../types'
+import { choresDueInWeek, isAway } from '../lib/scheduler'
 import {
-  choresDueInWeek,
-  isAway,
-  scheduleWeek,
-} from '../lib/scheduler'
+  buildSeedPairDrafts,
+  refreshWeekTwoDraft,
+  validateSeedWeek,
+} from '../lib/seedRotaDraft'
 import { addWeeks, currentWeekKey, formatWeekLabel } from '../lib/weeks'
 
 interface SeedRotaPanelProps {
@@ -23,25 +24,6 @@ function isWeekInputValue(value: string): boolean {
   return /^\d{4}-W\d{2}$/.test(value)
 }
 
-function draftFromSchedule(
-  household: Household,
-  away: AwayMap,
-  weekKey: string,
-  overrides: WeekOverrideMap,
-): WeekAssignmentOverride {
-  const existing = overrides[weekKey]
-  if (existing !== undefined) {
-    return { ...existing }
-  }
-
-  const schedule = scheduleWeek(household, away, weekKey, { overrides })
-  const draft: WeekAssignmentOverride = {}
-  for (const assignment of schedule.assignments) {
-    draft[assignment.choreId] = assignment.personId
-  }
-  return draft
-}
-
 function SeedRotaPanel({
   household,
   away,
@@ -52,12 +34,15 @@ function SeedRotaPanel({
   const weekTwo = addWeeks(startWeek, 1)
   const [draftOne, setDraftOne] = useState<WeekAssignmentOverride>({})
   const [draftTwo, setDraftTwo] = useState<WeekAssignmentOverride>({})
+  const [draftTwoEdited, setDraftTwoEdited] = useState(false)
   const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle')
   const [error, setError] = useState('')
 
   useEffect(() => {
-    setDraftOne(draftFromSchedule(household, away, startWeek, overrides))
-    setDraftTwo(draftFromSchedule(household, away, weekTwo, overrides))
+    const pair = buildSeedPairDrafts(household, away, startWeek, overrides)
+    setDraftOne(pair.draftOne)
+    setDraftTwo(pair.draftTwo)
+    setDraftTwoEdited(false)
     setStatus('idle')
     setError('')
   }, [household, away, startWeek, weekTwo, overrides])
@@ -67,30 +52,33 @@ function SeedRotaPanel({
     [overrides],
   )
 
-  const validateWeek = (
-    weekKey: string,
-    draft: WeekAssignmentOverride,
-  ): string | null => {
-    const due = choresDueInWeek(household, weekKey)
-    for (const chore of due) {
-      const personId = draft[chore.id]
-      if (!personId) {
-        return `${formatWeekLabel(weekKey)}: pick someone for ${chore.name}.`
-      }
-      const person = household.people.find((item) => item.id === personId)
-      if (!person) {
-        return `${formatWeekLabel(weekKey)}: unknown person for ${chore.name}.`
-      }
-      if (isAway(away, personId, weekKey)) {
-        return `${formatWeekLabel(weekKey)}: ${person.name} is on holiday — pick someone else for ${chore.name}, or adjust Holidays.`
-      }
+  const updateDraftOne = (next: WeekAssignmentOverride) => {
+    setDraftOne(next)
+    if (draftTwoEdited) {
+      return
     }
-    return null
+
+    const refreshed = refreshWeekTwoDraft(
+      household,
+      away,
+      startWeek,
+      overrides,
+      next,
+    )
+    if (refreshed !== null) {
+      setDraftTwo(refreshed)
+    }
+  }
+
+  const updateDraftTwo = (next: WeekAssignmentOverride) => {
+    setDraftTwo(next)
+    setDraftTwoEdited(true)
   }
 
   const handleSave = () => {
     const firstError =
-      validateWeek(startWeek, draftOne) ?? validateWeek(weekTwo, draftTwo)
+      validateSeedWeek(household, away, startWeek, draftOne) ??
+      validateSeedWeek(household, away, weekTwo, draftTwo)
     if (firstError) {
       setStatus('error')
       setError(firstError)
@@ -111,12 +99,14 @@ function SeedRotaPanel({
     delete next[startWeek]
     delete next[weekTwo]
     onOverridesChange(next)
+    setDraftTwoEdited(false)
     setStatus('idle')
     setError('')
   }
 
   const handleClearAll = () => {
     onOverridesChange({})
+    setDraftTwoEdited(false)
     setStatus('idle')
     setError('')
   }
@@ -124,7 +114,7 @@ function SeedRotaPanel({
   const renderWeekEditor = (
     weekKey: string,
     draft: WeekAssignmentOverride,
-    setDraft: (next: WeekAssignmentOverride) => void,
+    onDraftChange: (next: WeekAssignmentOverride) => void,
   ) => {
     const due = choresDueInWeek(household, weekKey)
     const assigned = new Set(Object.values(draft))
@@ -149,7 +139,7 @@ function SeedRotaPanel({
               <select
                 value={draft[chore.id] ?? ''}
                 onChange={(event) =>
-                  setDraft({ ...draft, [chore.id]: event.target.value })
+                  onDraftChange({ ...draft, [chore.id]: event.target.value })
                 }
               >
                 <option value="" disabled>
@@ -202,8 +192,8 @@ function SeedRotaPanel({
       </label>
 
       <div className="seed-week-grid">
-        {renderWeekEditor(startWeek, draftOne, setDraftOne)}
-        {renderWeekEditor(weekTwo, draftTwo, setDraftTwo)}
+        {renderWeekEditor(startWeek, draftOne, updateDraftOne)}
+        {renderWeekEditor(weekTwo, draftTwo, updateDraftTwo)}
       </div>
 
       <div className="field-row seed-actions">

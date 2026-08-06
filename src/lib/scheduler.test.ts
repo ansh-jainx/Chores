@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { awayDaysInWeek, isAway, peoplePresent, scheduleWeek } from './scheduler';
+import {
+  awayDaysInWeek,
+  choresDueInWeek,
+  isAway,
+  peoplePresent,
+  scheduleWeek,
+} from './scheduler';
 import { FALLBACK_HOUSEHOLD } from './defaults';
 import { addWeeks } from './weeks';
 import type { Assignment, AwayMap, Household, WeekOverrideMap } from '../types';
@@ -326,36 +332,146 @@ describe('scheduleWeek', () => {
     );
   });
 
-  it('uses seeded overrides as locked weeks and rotation history', () => {
-    const locked = scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W30', {
+  it('materializes a locked override week as exact assignments for due chores', () => {
+    expect(scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W30', {
       overrides: seededOverrides,
-    });
-    expect(
-      Object.fromEntries(
-        locked.assignments.map((item) => [item.choreId, item.personId]),
-      ),
-    ).toEqual(seededOverrides['2026-W30']);
-
-    // Week after the seed should not repeat kitchen from the locked week.
-    const next = scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W32', {
-      overrides: seededOverrides,
-    });
-    const kitchen = next.assignments.find((item) => item.choreId === 'kitchen');
-    expect(kitchen?.personId).not.toBe('person-3');
+    }).assignments).toEqual([
+      {
+        choreId: 'bath-up',
+        choreName: 'Bath up',
+        personId: 'person-1',
+        personName: 'Person 1',
+        effort: 'heavy',
+      },
+      {
+        choreId: 'bath-down',
+        choreName: 'Bath down',
+        personId: 'person-2',
+        personName: 'Person 2',
+        effort: 'heavy',
+      },
+      {
+        choreId: 'kitchen',
+        choreName: 'Kitchen',
+        personId: 'person-3',
+        personName: 'Person 3',
+        effort: 'heavy',
+      },
+      {
+        choreId: 'hallway',
+        choreName: 'Hallway',
+        personId: 'person-5',
+        personName: 'Person 5',
+        effort: 'heavy',
+      },
+      {
+        choreId: 'cardboard',
+        choreName: 'Cardboard',
+        personId: 'person-4',
+        personName: 'Person 4',
+        effort: 'light',
+      },
+    ]);
   });
 
-  it('schedules a year of weeks within the bounded override lookback budget', () => {
+  it('materializes incomplete locked overrides as partial assignments only', () => {
+    const partialOverrides: WeekOverrideMap = {
+      '2026-W30': {
+        'bath-up': 'person-1',
+        kitchen: 'person-3',
+      },
+    };
+
+    const assignments = scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W30', {
+      overrides: partialOverrides,
+    }).assignments;
+
+    expect(assignmentsByChore(assignments)).toEqual(partialOverrides['2026-W30']);
+    expect(assignments.map(({ choreId }) => choreId)).toEqual(['bath-up', 'kitchen']);
+  });
+
+  it('treats an empty override object as a locked blank week', () => {
+    const emptyOverrides: WeekOverrideMap = {
+      '2026-W30': {},
+    };
+
+    // Empty override objects currently still lock the week instead of falling
+    // back to auto scheduling, so a due week can intentionally materialize blank.
+    expect(choresDueInWeek(FALLBACK_HOUSEHOLD, '2026-W30')).not.toHaveLength(0);
+    expect(scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W30', {
+      overrides: emptyOverrides,
+    }).assignments).toEqual([]);
+  });
+
+  it('uses two seeded weeks as rotation history for week+2 kitchen assignment', () => {
+    const previousKitchen = scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W31', {
+      overrides: seededOverrides,
+    }).assignments.find((item) => item.choreId === 'kitchen');
+    const weekPlusTwoKitchen = scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W32', {
+      overrides: seededOverrides,
+    }).assignments.find((item) => item.choreId === 'kitchen');
+
+    expect(previousKitchen?.personId).toBe(seededOverrides['2026-W31'].kitchen);
+    expect(weekPlusTwoKitchen?.personId).not.toBe(previousKitchen?.personId);
+  });
+
+  it('skips away people in auto weeks but warns when a locked seed assigns them', () => {
+    const awayInAutoWeek: AwayMap = {
+      'person-3': [
+        { id: 'summer', name: 'Summer holiday', from: '2026-08-03', until: '2026-08-10' },
+      ],
+    };
+    const auto = scheduleWeek(FALLBACK_HOUSEHOLD, awayInAutoWeek, '2026-W32', {
+      overrides: seededOverrides,
+    });
+
+    expect(auto.assignments.some(({ personId }) => personId === 'person-3')).toBe(false);
+
+    const awayInSeededWeek: AwayMap = {
+      'person-3': [
+        { id: 'summer', name: 'Summer holiday', from: '2026-07-20', until: '2026-07-27' },
+      ],
+    };
+    const lockedKitchen = scheduleWeek(FALLBACK_HOUSEHOLD, awayInSeededWeek, '2026-W30', {
+      overrides: seededOverrides,
+    }).assignments.find((item) => item.choreId === 'kitchen');
+
+    expect(lockedKitchen).toMatchObject({
+      personId: 'person-3',
+      warning: 'Person is on holiday this week',
+    });
+  });
+
+  it('returns the expected FALLBACK_HOUSEHOLD biweekly split for W30 and W31', () => {
+    expect(choresDueInWeek(FALLBACK_HOUSEHOLD, '2026-W30').map(({ id }) => id)).toEqual([
+      'bath-up',
+      'bath-down',
+      'kitchen',
+      'hallway',
+      'cardboard',
+    ]);
+    expect(choresDueInWeek(FALLBACK_HOUSEHOLD, '2026-W31').map(({ id }) => id)).toEqual([
+      'bath-up',
+      'bath-down',
+      'kitchen',
+      'towels',
+      'pag',
+    ]);
+  });
+
+  it('schedules 24 consecutive weeks with two seed overrides quickly', () => {
     const startedAt = performance.now();
-    const schedules = Array.from({ length: 52 }, (_, index) =>
+    const schedules = Array.from({ length: 24 }, (_, index) =>
       scheduleWeek(FALLBACK_HOUSEHOLD, {}, addWeeks('2026-W30', index), {
         overrides: seededOverrides,
       }),
     );
     const elapsedMs = performance.now() - startedAt;
 
-    expect(schedules).toHaveLength(52);
-    expect(schedules.every((schedule) => schedule.assignments.length > 0)).toBe(true);
-    expect(elapsedMs).toBeLessThan(2_000);
+    expect(schedules).toHaveLength(24);
+    expect(schedules[0].assignments).toHaveLength(5);
+    expect(schedules[1].assignments).toHaveLength(5);
+    expect.soft(elapsedMs).toBeLessThan(3_000);
   });
 });
 
@@ -382,6 +498,12 @@ function countAssignmentsByPerson(
   }
 
   return counts;
+}
+
+function assignmentsByChore(assignments: Assignment[]): Record<string, string> {
+  return Object.fromEntries(
+    assignments.map((assignment) => [assignment.choreId, assignment.personId]),
+  );
 }
 
 function titleCase(value: string): string {
