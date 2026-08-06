@@ -39,17 +39,16 @@ const rotationHousehold: Household = {
 describe('validateSeedWeek', () => {
   const weekKey = '2026-W02'
 
-  it('rejects duplicate assignees across due chores', () => {
+  it('allows one person to hold multiple chores in a locked week', () => {
     const draft: WeekAssignmentOverride = {
       dishes: 'ada',
       bins: 'ada',
       hallway: 'ben',
     }
 
-    const error = validateSeedWeek(validationHousehold, EMPTY_AWAY, weekKey, draft)
-
-    expect(error).toContain('Ada')
-    expect(error).toMatch(/already assigned/i)
+    expect(
+      validateSeedWeek(validationHousehold, EMPTY_AWAY, weekKey, draft),
+    ).toBeNull()
   })
 
   it('accepts one assignee per due chore', () => {

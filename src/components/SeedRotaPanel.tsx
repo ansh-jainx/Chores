@@ -270,7 +270,8 @@ function SeedRotaPanel({
       <p className="field-help">
         Lock past or current weeks so auto rotation continues from real history.
         Use Prev/Next to pick any ISO week, or import JSON from an older chore
-        wheel.
+        wheel. Locked weeks may give one person multiple chores (matches an old
+        wheel / holiday stacking).
       </p>
 
       <div className="field-row seed-week-nav">

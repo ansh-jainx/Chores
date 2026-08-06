@@ -84,7 +84,6 @@ export function validateSeedWeek(
   draft: WeekAssignmentOverride,
 ): string | null {
   const due = choresDueInWeek(household, weekKey)
-  const seen = new Map<string, string>()
 
   for (const chore of due) {
     const personId = draft[chore.id]
@@ -100,12 +99,6 @@ export function validateSeedWeek(
     if (isAway(away, personId, weekKey)) {
       return `${formatWeekLabel(weekKey)}: ${person.name} is on holiday — pick someone else for ${chore.name}, or adjust Holidays.`
     }
-
-    const previousChore = seen.get(personId)
-    if (previousChore !== undefined) {
-      return `${formatWeekLabel(weekKey)}: ${person.name} is already assigned to ${previousChore}; pick someone else for ${chore.name}.`
-    }
-    seen.set(personId, chore.name)
   }
 
   return null
