@@ -85,6 +85,50 @@ describe('parsePersistedState', () => {
     })
   })
 
+  it('rejects unsafe keys in overrides', () => {
+    for (const unsafeKey of ['__proto__', 'constructor', 'prototype']) {
+      expect(
+        parsePersistedState({
+          household: state.household,
+          away: state.away,
+          completions: {},
+          overrides: { [unsafeKey]: { kitchen: 'alex' } },
+        }),
+      ).toBeNull()
+
+      expect(
+        parsePersistedState({
+          household: state.household,
+          away: state.away,
+          completions: {},
+          overrides: { '2026-W30': { [unsafeKey]: 'alex' } },
+        }),
+      ).toBeNull()
+    }
+  })
+
+  it('rejects non-week keys in overrides', () => {
+    expect(
+      parsePersistedState({
+        household: state.household,
+        away: state.away,
+        completions: {},
+        overrides: { notAWeek: { kitchen: 'alex' } },
+      }),
+    ).toBeNull()
+  })
+
+  it('rejects non-string person ids in overrides', () => {
+    expect(
+      parsePersistedState({
+        household: state.household,
+        away: state.away,
+        completions: {},
+        overrides: { '2026-W30': { kitchen: 123 } },
+      }),
+    ).toBeNull()
+  })
+
   it('rejects objects with unexpected prototypes', () => {
     const stateWithNullPrototype = Object.assign(Object.create(null), state)
 

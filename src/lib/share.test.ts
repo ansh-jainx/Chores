@@ -57,6 +57,22 @@ describe('share hashes', () => {
     expect(decodeShareHash(hash)).toEqual(state)
   })
 
+  it('round-trips persisted state with overrides', () => {
+    const stateWithOverrides: PersistedState = {
+      ...state,
+      overrides: {
+        '2026-W30': {
+          kitchen: 'alex',
+          'bathroom-up': 'sam',
+        },
+      },
+    }
+
+    expect(decodeShareHash(encodeShareHash(stateWithOverrides))).toEqual(
+      stateWithOverrides,
+    )
+  })
+
   it('returns null for invalid input', () => {
     expect(decodeShareHash('')).toBeNull()
     expect(decodeShareHash('#s=not valid')).toBeNull()

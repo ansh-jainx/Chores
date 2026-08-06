@@ -216,4 +216,33 @@ describe('useHousehold', () => {
     await waitFor(() => expect(result.current.completions).toEqual({}))
     expect(readStoredState()?.completions).toEqual({})
   })
+
+  it('sets week overrides and persists them', async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState))
+
+    const { result } = renderHook(() => useHousehold())
+
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    act(() => {
+      result.current.setOverrides({
+        '2026-W30': {
+          trash: 'sam',
+        },
+      })
+    })
+
+    await waitFor(() =>
+      expect(result.current.overrides).toEqual({
+        '2026-W30': {
+          trash: 'sam',
+        },
+      }),
+    )
+    expect(readStoredState()?.overrides).toEqual({
+      '2026-W30': {
+        trash: 'sam',
+      },
+    })
+  })
 })
