@@ -10,6 +10,7 @@ import type {
 } from '../types'
 import { AWAY_DAY_THRESHOLD } from '../types'
 import {
+  addWeeks,
   formatUtcDate,
   overlapDaysInWeek,
   parseIsoDate,
@@ -18,6 +19,17 @@ import {
   weekOrdinal,
   weekStartDate,
 } from './weeks'
+
+type ScheduleOptions = {
+  /**
+   * When true (default), avoid giving the same non-light chore to the person
+   * who had it on the previous occurrence if another candidate is available.
+   */
+  avoidConsecutive?: boolean
+}
+
+/** How far back consecutive-avoidance may recurse when resolving prior weeks. */
+const AVOID_LOOKBACK_DEPTH = 64
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -44,6 +56,13 @@ const SECOND_CHORE_PREFERENCE: Record<string, number> = {
 
 /** Light biweekly chores that should rotate one-per-person across a 6-week cycle. */
 const LIGHT_SIDE_CHORE_IDS = new Set(['cardboard', 'towels'])
+
+/**
+ * Biweekly partners of the light side (hallway with cardboard, pag with towels).
+ * Reserved early on a fixed rotating seat so they are not whatever person is
+ * left after baths/kitchen fill — which caused consecutive repeats.
+ */
+const ROTATING_PAIR_CHORE_IDS = new Set(['hallway', 'pag'])
 
 export function choreEffort(chore: Chore): Effort {
   return chore.effort ?? 'medium'
@@ -98,7 +117,34 @@ export function scheduleWeek(
   household: Household,
   away: AwayMap,
   weekKey: string,
+  options?: ScheduleOptions,
 ): WeekSchedule {
+  return scheduleWeekInternal(
+    household,
+    away,
+    weekKey,
+    options,
+    new Map<string, WeekSchedule>(),
+    AVOID_LOOKBACK_DEPTH,
+  )
+}
+
+function scheduleWeekInternal(
+  household: Household,
+  away: AwayMap,
+  weekKey: string,
+  options: ScheduleOptions | undefined,
+  memo: Map<string, WeekSchedule>,
+  lookbackDepth: number,
+): WeekSchedule {
+  const avoidConsecutive =
+    options?.avoidConsecutive !== false && lookbackDepth > 0
+  const memoKey = `${weekKey}|${avoidConsecutive ? '1' : '0'}`
+  const cached = memo.get(memoKey)
+  if (cached !== undefined) {
+    return cached
+  }
+
   const { week: weekNumber } = parseWeekKey(weekKey)
   const rotationOrdinal = weekOrdinal(weekKey)
   const presentPeople = peoplePresent(household, away, weekKey)
@@ -111,10 +157,9 @@ export function scheduleWeek(
   const assignments: Assignment[] = []
 
   if (presentPeople.length === 0) {
-    return {
-      weekKey,
-      assignments,
-    }
+    const empty = { weekKey, assignments }
+    memo.set(memoKey, empty)
+    return empty
   }
 
   const biweeklyPhases = new Map<string, number>()
@@ -160,11 +205,28 @@ export function scheduleWeek(
     (person) => !freePersonIds.has(person.id),
   )
 
-  // Reserve the light-side chore (cardboard or towels) first so its 6-week
-  // rotation is not whatever seat is left after heavies are filled.
+  // Who held each due chore on its previous occurrence (week -1 or -2).
+  // Used so kitchen/hallway/baths cannot stick to the same person back-to-back
+  // when another eligible person is free.
+  const previousByChore = avoidConsecutive
+    ? previousAssignees(
+        household,
+        away,
+        weekKey,
+        dueChores.map(({ chore }) => chore),
+        memo,
+        lookbackDepth - 1,
+      )
+    : new Map<string, string>()
+
+  // Reserve rotating biweekly seats first (light + hallway/pag) so their
+  // 6-week cycle is not whatever seat is left after baths/kitchen fill.
   const lightDue = dueChores.filter(({ chore }) => isLightSideChore(chore))
-  const remainingDue = dueChores.filter(({ chore }) => !isLightSideChore(chore))
-  const orderedDue = [...lightDue, ...remainingDue]
+  const pairDue = dueChores.filter(({ chore }) => isRotatingPairChore(chore))
+  const remainingDue = dueChores.filter(
+    ({ chore }) => !isLightSideChore(chore) && !isRotatingPairChore(chore),
+  )
+  const orderedDue = [...lightDue, ...pairDue, ...remainingDue]
 
   for (const { chore, choreIndex } of orderedDue) {
     const effort = choreEffort(chore)
@@ -195,13 +257,52 @@ export function scheduleWeek(
       (person) => (choreCountByPerson.get(person.id) ?? 0) === minChores,
     )
 
-    const person = isLightSideChore(chore)
-      ? pickPreferredPerson(
-          candidates,
-          presentPeople,
-          rotationOrdinal + 1,
-        )
-      : pickCyclicPerson(candidates, choreIndex + rotationOrdinal)
+    // Non-light chores: skip last occurrence's assignee when someone else can take it.
+    const previousId = isLightSideChore(chore)
+      ? undefined
+      : previousByChore.get(chore.id)
+    if (previousId !== undefined && candidates.length > 1) {
+      const withoutPrevious = candidates.filter(
+        (person) => person.id !== previousId,
+      )
+      if (withoutPrevious.length > 0) {
+        candidates = withoutPrevious
+      }
+    }
+
+    // Light = seat+1, hallway/pag = seat+2 (fixed household rotation).
+    // Weekly heavies round-robin the remaining candidates with a per-chore cursor.
+    let person = isLightSideChore(chore)
+      ? pickPreferredPerson(candidates, presentPeople, rotationOrdinal + 1)
+      : isRotatingPairChore(chore)
+        ? pickPreferredPerson(candidates, presentPeople, rotationOrdinal + 2)
+        : pickRoundRobinPerson(
+            candidates,
+            presentPeople,
+            choreRotationCursor(chore, rotationOrdinal, choreIndex),
+          )
+
+    // Zone/leftover cases can still force a repeat (e.g. only one bath-down
+    // person left). Swap with an earlier non-light assignment when possible
+    // so we rotate without creating a second free person.
+    if (
+      previousId !== undefined &&
+      person.id === previousId &&
+      !isLightSideChore(chore)
+    ) {
+      const swapped = stealAssignmentToAvoidRepeat(
+        chore,
+        previousId,
+        assignments,
+        household,
+        presentPeople,
+        heavyCountByPerson,
+        choreCountByPerson,
+      )
+      if (swapped !== undefined) {
+        person = swapped
+      }
+    }
 
     heavyCountByPerson.set(
       person.id,
@@ -227,10 +328,12 @@ export function scheduleWeek(
     (left, right) => (order.get(left.choreId) ?? 0) - (order.get(right.choreId) ?? 0),
   )
 
-  return {
+  const result = {
     weekKey,
     assignments,
   }
+  memo.set(memoKey, result)
+  return result
 }
 
 /** Convert a legacy whole-week away key into a Mon→next-Mon range. */
@@ -269,6 +372,149 @@ function assignLaterScore(chore: Chore): number {
 
 function isLightSideChore(chore: Chore): boolean {
   return LIGHT_SIDE_CHORE_IDS.has(chore.id) || /cardboard|towels/i.test(chore.name)
+}
+
+function isRotatingPairChore(chore: Chore): boolean {
+  return (
+    ROTATING_PAIR_CHORE_IDS.has(chore.id) || /hallway|p\/?a\/?g/i.test(chore.name)
+  )
+}
+
+function personEligibleForChore(person: Person, chore: Chore): boolean {
+  return chore.zone === undefined || person.bathZone === chore.zone
+}
+
+/**
+ * Move an earlier non-light assignment onto `previousId` and return that
+ * assignee for the current chore — used when the only eligible seat would
+ * otherwise repeat last occurrence.
+ */
+function stealAssignmentToAvoidRepeat(
+  chore: Chore,
+  previousId: string,
+  assignments: Assignment[],
+  household: Household,
+  presentPeople: Person[],
+  heavyCountByPerson: Map<string, number>,
+  choreCountByPerson: Map<string, number>,
+): Person | undefined {
+  const previousPerson = presentPeople.find((person) => person.id === previousId)
+  if (previousPerson === undefined) {
+    return undefined
+  }
+
+  const choreById = new Map(household.chores.map((item) => [item.id, item]))
+
+  for (let index = assignments.length - 1; index >= 0; index -= 1) {
+    const other = assignments[index]
+    const otherChore = choreById.get(other.choreId)
+    if (otherChore === undefined || isLightSideChore(otherChore)) {
+      continue
+    }
+
+    const otherPerson = presentPeople.find((person) => person.id === other.personId)
+    if (otherPerson === undefined) {
+      continue
+    }
+    if (!personEligibleForChore(otherPerson, chore)) {
+      continue
+    }
+    if (!personEligibleForChore(previousPerson, otherChore)) {
+      continue
+    }
+
+    // Avoid handing otherPerson two heavies via the swap.
+    const choreIsHeavy = choreEffort(chore) === 'heavy'
+    const otherIsHeavy = choreEffort(otherChore) === 'heavy'
+    if (
+      choreIsHeavy &&
+      !otherIsHeavy &&
+      (heavyCountByPerson.get(otherPerson.id) ?? 0) > 0
+    ) {
+      continue
+    }
+
+    assignments[index] = {
+      ...other,
+      personId: previousPerson.id,
+      personName: previousPerson.name,
+    }
+
+    heavyCountByPerson.set(
+      otherPerson.id,
+      (heavyCountByPerson.get(otherPerson.id) ?? 0) - (otherIsHeavy ? 1 : 0),
+    )
+    choreCountByPerson.set(
+      otherPerson.id,
+      (choreCountByPerson.get(otherPerson.id) ?? 0) - 1,
+    )
+    heavyCountByPerson.set(
+      previousPerson.id,
+      (heavyCountByPerson.get(previousPerson.id) ?? 0) + (otherIsHeavy ? 1 : 0),
+    )
+    choreCountByPerson.set(
+      previousPerson.id,
+      (choreCountByPerson.get(previousPerson.id) ?? 0) + 1,
+    )
+
+    return otherPerson
+  }
+
+  return undefined
+}
+
+/** Week key of the previous occurrence of this chore (weekly −1, biweekly −2). */
+function lastOccurrenceWeekKey(weekKey: string, chore: Chore): string {
+  return addWeeks(weekKey, chore.cadence === 'biweekly' ? -2 : -1)
+}
+
+/**
+ * Map choreId → personId from each chore's previous occurrence.
+ * Recurses with avoidConsecutive:false so we do not walk infinitely.
+ */
+function previousAssignees(
+  household: Household,
+  away: AwayMap,
+  weekKey: string,
+  dueChores: Chore[],
+  memo: Map<string, WeekSchedule>,
+  lookbackDepth: number,
+): Map<string, string> {
+  const result = new Map<string, string>()
+  const choresByPrevWeek = new Map<string, Chore[]>()
+
+  for (const chore of dueChores) {
+    if (isLightSideChore(chore)) {
+      continue
+    }
+    const prevKey = lastOccurrenceWeekKey(weekKey, chore)
+    const list = choresByPrevWeek.get(prevKey) ?? []
+    list.push(chore)
+    choresByPrevWeek.set(prevKey, list)
+  }
+
+  for (const [prevKey, chores] of choresByPrevWeek) {
+    // Shared memo + bounded depth so lookback sees real swaps without
+    // walking the calendar back to year 0.
+    const previous = scheduleWeekInternal(
+      household,
+      away,
+      prevKey,
+      { avoidConsecutive: true },
+      memo,
+      lookbackDepth,
+    )
+    for (const chore of chores) {
+      const assignment = previous.assignments.find(
+        (item) => item.choreId === chore.id,
+      )
+      if (assignment !== undefined) {
+        result.set(chore.id, assignment.personId)
+      }
+    }
+  }
+
+  return result
 }
 
 /**
@@ -373,6 +619,22 @@ function addDaysToIsoDate(date: string, days: number): string {
   return formatUtcDate(parseIsoDate(date) + days * MS_PER_DAY)
 }
 
+/**
+ * Weekly chores advance one seat per week; biweekly chores advance one seat
+ * per occurrence (every two weeks) so they still cycle through everyone.
+ */
+function choreRotationCursor(
+  chore: Chore,
+  rotationOrdinal: number,
+  choreSalt: number,
+): number {
+  if (chore.cadence === 'biweekly') {
+    return Math.floor(rotationOrdinal / 2) + choreSalt
+  }
+
+  return rotationOrdinal + choreSalt
+}
+
 function pickCyclicPerson(candidates: Person[], rotationSeed: number): Person {
   if (candidates.length === 0) {
     throw new Error('Cannot choose from an empty candidate list')
@@ -404,6 +666,29 @@ function pickPreferredPerson(
   }
 
   return pickCyclicPerson(candidates, preferredIndex)
+}
+
+/**
+ * Round-robin through candidates in stable household order.
+ * Using the live candidate list (not a global pool) means the cursor still
+ * advances when someone is free/busy, so consecutive weeks rarely repeat.
+ */
+function pickRoundRobinPerson(
+  candidates: Person[],
+  presentPeople: Person[],
+  cursor: number,
+): Person {
+  if (candidates.length === 0) {
+    throw new Error('Cannot choose from an empty candidate list')
+  }
+
+  const order = new Map(presentPeople.map((person, index) => [person.id, index]))
+  const ordered = [...candidates].sort(
+    (left, right) =>
+      (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0),
+  )
+
+  return ordered[positiveModulo(cursor, ordered.length)]
 }
 
 function positiveModulo(value: number, divisor: number): number {

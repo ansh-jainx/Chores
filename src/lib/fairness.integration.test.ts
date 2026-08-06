@@ -214,6 +214,35 @@ describe('scheduleWeek fairness integration', () => {
     }
   })
 
+  it('does not assign the same non-light chore to the same person on consecutive occurrences', () => {
+    const start = '2026-W30'
+    const weeks = 24
+    const lastAssignee = new Map<string, string>()
+
+    for (let index = 0; index < weeks; index += 1) {
+      const weekKey = addWeeks(start, index)
+      const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
+
+      for (const assignment of schedule.assignments) {
+        const chore = choreById.get(assignment.choreId)
+        if (
+          chore === undefined ||
+          chore.id === 'cardboard' ||
+          chore.id === 'towels'
+        ) {
+          continue
+        }
+
+        const previous = lastAssignee.get(assignment.choreId)
+        expect(
+          previous,
+          `${assignment.choreId} stuck on ${assignment.personId} at ${weekKey}`,
+        ).not.toBe(assignment.personId)
+        lastAssignee.set(assignment.choreId, assignment.personId)
+      }
+    }
+  })
+
   it('keeps weekly non-zone chore totals roughly even over a six-week window', () => {
     const countsByWeek = WEEK_KEYS.map((weekKey) => {
       const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
