@@ -97,15 +97,15 @@ export function validateSeedWeek(
       return `${formatWeekLabel(weekKey)}: unknown person for ${chore.name}.`
     }
 
-    if (isAway(away, personId, weekKey)) {
-      return `${formatWeekLabel(weekKey)}: ${person.name} is on holiday — pick someone else for ${chore.name}, or adjust Holidays.`
-    }
-
     const previousChore = seen.get(personId)
     if (previousChore !== undefined) {
       return `${formatWeekLabel(weekKey)}: ${person.name} is already assigned to ${previousChore}; pick someone else for ${chore.name}.`
     }
     seen.set(personId, chore.name)
+
+    if (isAway(away, personId, weekKey)) {
+      return `${formatWeekLabel(weekKey)}: ${person.name} is on holiday - pick someone else for ${chore.name}, or adjust Holidays.`
+    }
   }
 
   return null
