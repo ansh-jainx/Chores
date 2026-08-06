@@ -3,6 +3,7 @@ import {
   defaultExportRange,
   type ExportFormat,
 } from '../lib/calendarExport'
+import { removePersonFromOverrides } from '../lib/overrides'
 import { downloadChoresPdf } from '../lib/pdfExport'
 import { encodeShareHash } from '../lib/share'
 import type {
@@ -159,17 +160,7 @@ function SetupPanel({
     }
 
     if (Object.keys(overrides).length > 0) {
-      const nextOverrides: WeekOverrideMap = {}
-      for (const [weekKey, weekOverride] of Object.entries(overrides)) {
-        const cleaned: WeekOverrideMap[string] = {}
-        for (const [choreId, assignedId] of Object.entries(weekOverride)) {
-          if (assignedId !== personId) {
-            cleaned[choreId] = assignedId
-          }
-        }
-        nextOverrides[weekKey] = cleaned
-      }
-      onOverridesChange(nextOverrides)
+      onOverridesChange(removePersonFromOverrides(overrides, personId))
     }
   }
 
