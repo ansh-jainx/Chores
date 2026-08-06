@@ -235,9 +235,11 @@ function scheduleWeekInternal(
   const avoidConsecutive =
     options?.avoidConsecutive !== false && lookbackDepth > 0
   const weekOverride = options?.overrides?.[weekKey]
+  // The memo is scoped to one public scheduleWeek call, so the same overrides
+  // map is used throughout the lookback. Locked weeks do not depend on depth.
   const memoKey =
     weekOverride !== undefined
-      ? `${weekKey}|override|${JSON.stringify(weekOverride)}`
+      ? `${weekKey}|override`
       : `${weekKey}|${avoidConsecutive ? '1' : '0'}`
   const cached = memo.get(memoKey)
   if (cached !== undefined) {
