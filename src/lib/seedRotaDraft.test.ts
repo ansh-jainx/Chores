@@ -46,12 +46,7 @@ describe('validateSeedWeek', () => {
       hallway: 'ben',
     }
 
-    const error = validateSeedWeek(
-      validationHousehold,
-      EMPTY_AWAY,
-      weekKey,
-      draft,
-    )
+    const error = validateSeedWeek(validationHousehold, EMPTY_AWAY, weekKey, draft)
 
     expect(error).toContain('Ada')
     expect(error).toMatch(/already assigned/i)
@@ -64,9 +59,7 @@ describe('validateSeedWeek', () => {
       hallway: 'cy',
     }
 
-    expect(
-      validateSeedWeek(validationHousehold, EMPTY_AWAY, weekKey, draft),
-    ).toBeNull()
+    expect(validateSeedWeek(validationHousehold, EMPTY_AWAY, weekKey, draft)).toBeNull()
   })
 
   it('rejects an away assignee', () => {
@@ -98,12 +91,7 @@ describe('validateSeedWeek', () => {
       bins: 'ben',
     }
 
-    const error = validateSeedWeek(
-      validationHousehold,
-      EMPTY_AWAY,
-      weekKey,
-      draft,
-    )
+    const error = validateSeedWeek(validationHousehold, EMPTY_AWAY, weekKey, draft)
 
     expect(error).toContain('pick someone for Hallway')
   })
