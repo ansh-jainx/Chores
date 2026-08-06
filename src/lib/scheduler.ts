@@ -235,10 +235,15 @@ function scheduleWeekInternal(
   const avoidConsecutive =
     options?.avoidConsecutive !== false && lookbackDepth > 0
   const weekOverride = options?.overrides?.[weekKey]
+  // Hollow `{}` locks are treated as absent so a blank key cannot wipe a week.
+  const lockedOverride =
+    weekOverride !== undefined && Object.keys(weekOverride).length > 0
+      ? weekOverride
+      : undefined
   // The memo is scoped to one public scheduleWeek call, so the same overrides
   // map is used throughout the lookback. Locked weeks do not depend on depth.
   const memoKey =
-    weekOverride !== undefined
+    lockedOverride !== undefined
       ? `${weekKey}|override`
       : `${weekKey}|${avoidConsecutive ? '1' : '0'}`
   const cached = memo.get(memoKey)
@@ -246,12 +251,12 @@ function scheduleWeekInternal(
     return cached
   }
 
-  if (weekOverride !== undefined) {
+  if (lockedOverride !== undefined) {
     const locked = materializeOverrideSchedule(
       household,
       away,
       weekKey,
-      weekOverride,
+      lockedOverride,
     )
     memo.set(memoKey, locked)
     return locked

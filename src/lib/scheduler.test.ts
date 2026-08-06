@@ -390,17 +390,22 @@ describe('scheduleWeek', () => {
     expect(assignments.map(({ choreId }) => choreId)).toEqual(['bath-up', 'kitchen']);
   });
 
-  it('treats an empty override object as a locked blank week', () => {
+  it('ignores empty override objects and falls back to auto scheduling', () => {
     const emptyOverrides: WeekOverrideMap = {
       '2026-W30': {},
     };
 
-    // Empty override objects currently still lock the week instead of falling
-    // back to auto scheduling, so a due week can intentionally materialize blank.
     expect(choresDueInWeek(FALLBACK_HOUSEHOLD, '2026-W30')).not.toHaveLength(0);
-    expect(scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W30', {
-      overrides: emptyOverrides,
-    }).assignments).toEqual([]);
+    expect(
+      scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W30', {
+        overrides: emptyOverrides,
+      }).assignments.length,
+    ).toBeGreaterThan(0);
+    expect(
+      scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W30', {
+        overrides: emptyOverrides,
+      }),
+    ).toEqual(scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W30'));
   });
 
   it('uses two seeded weeks as rotation history for week+2 kitchen assignment', () => {
