@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Assignment, Chore } from '../types'
+import type {
+  Assignment,
+  AwayMap,
+  Chore,
+  WeekAssignmentOverride,
+  WeekOverrideMap,
+  WeekSchedule,
+} from '../types'
 import { FALLBACK_HOUSEHOLD } from './defaults'
-import { scheduleWeek } from './scheduler'
+import { peoplePresent, scheduleWeek } from './scheduler'
 import { addWeeks } from './weeks'
 
 const WEEK_KEYS = [
@@ -13,6 +20,10 @@ const WEEK_KEYS = [
   '2026-W34',
   '2026-W35',
 ] as const
+const SEEDED_WEEK_KEYS = ['2026-W30', '2026-W31'] as const
+const AUTO_WEEK_KEYS = Array.from({ length: 10 }, (_, index) =>
+  addWeeks('2026-W32', index),
+)
 const EMPTY_AWAY = {}
 
 const choreById = new Map(FALLBACK_HOUSEHOLD.chores.map((chore) => [chore.id, chore]))
@@ -45,6 +56,60 @@ function totalCounts(countsByWeek: Map<string, number>[]): number[] {
   }
 
   return [...totals.values()]
+}
+
+function lockSchedule(schedule: WeekSchedule): WeekAssignmentOverride {
+  const override: WeekAssignmentOverride = {}
+  const counts = new Map<string, number>()
+
+  for (const assignment of schedule.assignments) {
+    override[assignment.choreId] = assignment.personId
+    counts.set(assignment.personId, (counts.get(assignment.personId) ?? 0) + 1)
+  }
+
+  expect(Math.max(0, ...counts.values())).toBe(1)
+
+  return override
+}
+
+function seededOverrides(away: AwayMap = EMPTY_AWAY): WeekOverrideMap {
+  const overrides: WeekOverrideMap = {}
+
+  for (const weekKey of SEEDED_WEEK_KEYS) {
+    overrides[weekKey] = lockSchedule(scheduleWeek(FALLBACK_HOUSEHOLD, away, weekKey))
+  }
+
+  return overrides
+}
+
+function expectExactlyOneFreePerson(schedule: WeekSchedule): void {
+  const assigned = new Set(schedule.assignments.map((assignment) => assignment.personId))
+
+  expect(FALLBACK_HOUSEHOLD.people.length - assigned.size).toBe(1)
+  expect(schedule.assignments).toHaveLength(assigned.size)
+}
+
+function expectNoConsecutiveNonLightAssignees(
+  schedules: WeekSchedule[],
+  chorePredicate: (chore: Chore) => boolean,
+): void {
+  const lastAssignee = new Map<string, string>()
+
+  for (const schedule of schedules) {
+    for (const assignment of schedule.assignments) {
+      const chore = choreById.get(assignment.choreId)
+      if (chore === undefined || !chorePredicate(chore)) {
+        continue
+      }
+
+      const previous = lastAssignee.get(assignment.choreId)
+      expect(
+        previous,
+        `${assignment.choreId} stuck on ${assignment.personId} at ${schedule.weekKey}`,
+      ).not.toBe(assignment.personId)
+      lastAssignee.set(assignment.choreId, assignment.personId)
+    }
+  }
 }
 
 describe('scheduleWeek fairness integration', () => {
@@ -283,6 +348,50 @@ describe('scheduleWeek fairness integration', () => {
 
       for (const assignment of upstairsBathroomAssignments) {
         expect(peopleById.get(assignment.personId)?.bathZone).toBe('up')
+      }
+    }
+  })
+
+  it('keeps auto-week free slots and non-light rotations after two locked seed weeks', () => {
+    const overrides = seededOverrides()
+    const schedules = [...SEEDED_WEEK_KEYS, ...AUTO_WEEK_KEYS].map((weekKey) =>
+      scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey, { overrides }),
+    )
+
+    for (const schedule of schedules.filter((item) =>
+      AUTO_WEEK_KEYS.includes(item.weekKey),
+    )) {
+      expectExactlyOneFreePerson(schedule)
+    }
+
+    expectNoConsecutiveNonLightAssignees(
+      schedules,
+      (chore) => chore.effort !== 'light',
+    )
+  })
+
+  it('uses only present people for auto weeks after locked seeds when a holiday removes someone', () => {
+    const away = {
+      'person-2': [
+        {
+          id: 'person-2-w33',
+          name: 'W33 holiday',
+          from: '2026-08-10',
+          until: '2026-08-14',
+        },
+      ],
+    }
+    const overrides = seededOverrides(away)
+
+    for (const weekKey of AUTO_WEEK_KEYS) {
+      const presentIds = new Set(
+        peoplePresent(FALLBACK_HOUSEHOLD, away, weekKey).map((person) => person.id),
+      )
+      const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, away, weekKey, { overrides })
+
+      expect(presentIds.has('person-2')).toBe(weekKey !== '2026-W33')
+      for (const assignment of schedule.assignments) {
+        expect(presentIds.has(assignment.personId)).toBe(true)
       }
     }
   })
