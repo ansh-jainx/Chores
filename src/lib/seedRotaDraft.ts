@@ -5,7 +5,7 @@ import type {
   WeekOverrideMap,
 } from '../types'
 import { choresDueInWeek, isAway, scheduleWeek } from './scheduler'
-import { addWeeks, formatWeekLabel } from './weeks'
+import { formatWeekLabel } from './weeks'
 
 /** Build a week draft from a lock, or from the scheduler using overrides as history. */
 export function buildWeekDraft(
@@ -13,68 +13,18 @@ export function buildWeekDraft(
   away: AwayMap,
   weekKey: string,
   overrides: WeekOverrideMap,
-  provisionalOverrides: WeekOverrideMap = {},
 ): WeekAssignmentOverride {
-  const mergedOverrides = { ...overrides, ...provisionalOverrides }
-  const existing = mergedOverrides[weekKey]
+  const existing = overrides[weekKey]
   if (existing !== undefined) {
     return { ...existing }
   }
 
-  const schedule = scheduleWeek(household, away, weekKey, {
-    overrides: mergedOverrides,
-  })
+  const schedule = scheduleWeek(household, away, weekKey, { overrides })
   const draft: WeekAssignmentOverride = {}
   for (const assignment of schedule.assignments) {
     draft[assignment.choreId] = assignment.personId
   }
   return draft
-}
-
-/**
- * Drafts for a seed pair. Week two's auto suggestion includes the current
- * week-one draft as provisional history so edits to week one reshape week two.
- */
-export function buildSeedPairDrafts(
-  household: Household,
-  away: AwayMap,
-  startWeek: string,
-  overrides: WeekOverrideMap,
-  draftOne?: WeekAssignmentOverride,
-): { draftOne: WeekAssignmentOverride; draftTwo: WeekAssignmentOverride } {
-  const weekTwo = addWeeks(startWeek, 1)
-  const one =
-    draftOne === undefined
-      ? buildWeekDraft(household, away, startWeek, overrides)
-      : { ...draftOne }
-
-  const twoLocked = overrides[weekTwo]
-  if (twoLocked !== undefined) {
-    return { draftOne: one, draftTwo: { ...twoLocked } }
-  }
-
-  const two = buildWeekDraft(household, away, weekTwo, overrides, {
-    [startWeek]: one,
-  })
-  return { draftOne: one, draftTwo: two }
-}
-
-/** Refresh week-two auto draft after week-one edits (no-op if week two is locked). */
-export function refreshWeekTwoDraft(
-  household: Household,
-  away: AwayMap,
-  startWeek: string,
-  overrides: WeekOverrideMap,
-  draftOne: WeekAssignmentOverride,
-): WeekAssignmentOverride | null {
-  const weekTwo = addWeeks(startWeek, 1)
-  if (overrides[weekTwo] !== undefined) {
-    return null
-  }
-
-  return buildWeekDraft(household, away, weekTwo, overrides, {
-    [startWeek]: draftOne,
-  })
 }
 
 export function validateSeedWeek(

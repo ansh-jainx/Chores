@@ -1,16 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import type { AwayMap, Household, WeekAssignmentOverride } from '../types'
-import {
-  buildSeedPairDrafts,
-  buildWeekDraft,
-  refreshWeekTwoDraft,
-  validateSeedWeek,
-} from './seedRotaDraft'
+import { choresDueInWeek } from './scheduler'
+import { buildWeekDraft, validateSeedWeek } from './seedRotaDraft'
 
 const EMPTY_AWAY: AwayMap = {}
 
-const validationHousehold: Household = {
+const household: Household = {
   people: [
     { id: 'ada', name: 'Ada', bathZone: 'up' },
     { id: 'ben', name: 'Ben', bathZone: 'down' },
@@ -24,17 +20,38 @@ const validationHousehold: Household = {
   ],
 }
 
-const rotationHousehold: Household = {
-  people: [
-    { id: 'ada', name: 'Ada', bathZone: 'up' },
-    { id: 'ben', name: 'Ben', bathZone: 'down' },
-  ],
-  biweeklyParity: 0,
-  chores: [
-    { id: 'dishes', name: 'Dishes', cadence: 'weekly' },
-    { id: 'bins', name: 'Bins', cadence: 'weekly' },
-  ],
-}
+describe('buildWeekDraft', () => {
+  it('returns a copy of a locked week as-is', () => {
+    const weekKey = '2026-W02'
+    const locked: WeekAssignmentOverride = {
+      dishes: 'cy',
+      bins: 'cy',
+      hallway: 'ben',
+    }
+
+    const draft = buildWeekDraft(household, EMPTY_AWAY, weekKey, {
+      [weekKey]: locked,
+    })
+
+    expect(draft).toEqual(locked)
+    expect(draft).not.toBe(locked)
+  })
+
+  it('assigns each due chore to a household member for an unlocked week', () => {
+    const weekKey = '2026-W03'
+    const draft = buildWeekDraft(household, EMPTY_AWAY, weekKey, {
+      '2026-W02': { dishes: 'ada', bins: 'ben', hallway: 'cy' },
+    })
+    const dueIds = choresDueInWeek(household, weekKey).map((chore) => chore.id)
+    const personIds = household.people.map((person) => person.id)
+
+    expect(dueIds.length).toBeGreaterThan(0)
+    expect(Object.keys(draft).sort()).toEqual([...dueIds].sort())
+    for (const personId of Object.values(draft)) {
+      expect(personIds).toContain(personId)
+    }
+  })
+})
 
 describe('validateSeedWeek', () => {
   const weekKey = '2026-W02'
@@ -46,9 +63,7 @@ describe('validateSeedWeek', () => {
       hallway: 'ben',
     }
 
-    expect(
-      validateSeedWeek(validationHousehold, EMPTY_AWAY, weekKey, draft),
-    ).toBeNull()
+    expect(validateSeedWeek(household, EMPTY_AWAY, weekKey, draft)).toBeNull()
   })
 
   it('accepts one assignee per due chore', () => {
@@ -58,7 +73,7 @@ describe('validateSeedWeek', () => {
       hallway: 'cy',
     }
 
-    expect(validateSeedWeek(validationHousehold, EMPTY_AWAY, weekKey, draft)).toBeNull()
+    expect(validateSeedWeek(household, EMPTY_AWAY, weekKey, draft)).toBeNull()
   })
 
   it('rejects an away assignee', () => {
@@ -78,7 +93,7 @@ describe('validateSeedWeek', () => {
       hallway: 'cy',
     }
 
-    const error = validateSeedWeek(validationHousehold, away, weekKey, draft)
+    const error = validateSeedWeek(household, away, weekKey, draft)
 
     expect(error).toContain('Ben')
     expect(error).toMatch(/holiday/i)
@@ -90,79 +105,8 @@ describe('validateSeedWeek', () => {
       bins: 'ben',
     }
 
-    const error = validateSeedWeek(validationHousehold, EMPTY_AWAY, weekKey, draft)
+    const error = validateSeedWeek(household, EMPTY_AWAY, weekKey, draft)
 
     expect(error).toContain('pick someone for Hallway')
-  })
-})
-
-describe('seed pair drafts', () => {
-  it('builds week two using provisional week-one draft as history', () => {
-    const start = '2026-W30'
-    const weekTwo = '2026-W31'
-    const persistedWeekOne = { dishes: 'ada', bins: 'ben' }
-    const editedWeekOne = { dishes: 'ben', bins: 'ada' }
-    const overrides = { [start]: persistedWeekOne }
-
-    const staleWeekTwo = buildWeekDraft(
-      rotationHousehold,
-      EMPTY_AWAY,
-      weekTwo,
-      overrides,
-    )
-    const pair = buildSeedPairDrafts(
-      rotationHousehold,
-      EMPTY_AWAY,
-      start,
-      overrides,
-      editedWeekOne,
-    )
-
-    expect(staleWeekTwo).toEqual({ dishes: 'ben', bins: 'ada' })
-    expect(pair.draftOne).toEqual(editedWeekOne)
-    expect(pair.draftTwo).toEqual({ dishes: 'ada', bins: 'ben' })
-    expect(pair.draftTwo).not.toEqual(staleWeekTwo)
-  })
-
-  it('keeps a locked week-two draft instead of rebuilding from provisional history', () => {
-    const start = '2026-W30'
-    const weekTwo = '2026-W31'
-    const lockedWeekTwo = { dishes: 'ben', bins: 'ada' }
-    const pair = buildSeedPairDrafts(
-      rotationHousehold,
-      EMPTY_AWAY,
-      start,
-      {
-        [start]: { dishes: 'ada', bins: 'ben' },
-        [weekTwo]: lockedWeekTwo,
-      },
-      { dishes: 'ben', bins: 'ada' },
-    )
-
-    expect(pair.draftTwo).toEqual(lockedWeekTwo)
-  })
-
-  it('refreshes week two only when it is not locked', () => {
-    const start = '2026-W30'
-    const weekTwo = '2026-W31'
-    const editedWeekOne = { dishes: 'ben', bins: 'ada' }
-    const refreshed = refreshWeekTwoDraft(
-      rotationHousehold,
-      EMPTY_AWAY,
-      start,
-      {},
-      editedWeekOne,
-    )
-
-    expect(refreshed).toEqual({ dishes: 'ada', bins: 'ben' })
-    expect(
-      refreshWeekTwoDraft(
-        rotationHousehold,
-        EMPTY_AWAY,
-        start,
-        { [weekTwo]: { dishes: 'ben', bins: 'ada' } },
-        editedWeekOne,
-      ),
-    ).toBeNull()
   })
 })
