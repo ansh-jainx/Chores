@@ -107,4 +107,19 @@ describe('scheduler seeded week overrides with holidays', () => {
     expect(assignment?.personId).toBe(awayPersonId)
     expect(assignment?.warning).toContain('holiday')
   })
+
+  it('warns when a locked assignee is outside the chore zone', () => {
+    const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W30', {
+      overrides: {
+        '2026-W30': {
+          'bath-up': 'person-2',
+        },
+      },
+    })
+
+    expect(schedule.assignments.find((assignment) => assignment.choreId === 'bath-up')).toMatchObject({
+      personId: 'person-2',
+      warning: 'Zone spill: Bath up usually needs bath-up',
+    })
+  })
 })

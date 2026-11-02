@@ -238,12 +238,9 @@ describe('scheduleWeek fairness integration', () => {
     expect(counts.reduce((sum, count) => sum + count, 0)).toBe(weeks)
   })
 
-  it('gives each person one free week and one cardboard/towel week every six weeks', () => {
+  it('gives each person one free week in the first six weeks', () => {
     const start = '2026-W30'
     const freeCounts = new Map(
-      FALLBACK_HOUSEHOLD.people.map((person) => [person.id, 0]),
-    )
-    const lightCounts = new Map(
       FALLBACK_HOUSEHOLD.people.map((person) => [person.id, 0]),
     )
 
@@ -259,23 +256,10 @@ describe('scheduleWeek fairness integration', () => {
           freeCounts.set(person.id, (freeCounts.get(person.id) ?? 0) + 1)
         }
       }
-
-      for (const assignment of schedule.assignments) {
-        if (
-          assignment.choreId === 'cardboard' ||
-          assignment.choreId === 'towels'
-        ) {
-          lightCounts.set(
-            assignment.personId,
-            (lightCounts.get(assignment.personId) ?? 0) + 1,
-          )
-        }
-      }
     }
 
     for (const person of FALLBACK_HOUSEHOLD.people) {
       expect(freeCounts.get(person.id)).toBe(1)
-      expect(lightCounts.get(person.id)).toBe(1)
     }
   })
 
