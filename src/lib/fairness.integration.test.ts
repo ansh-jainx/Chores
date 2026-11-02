@@ -9,7 +9,7 @@ import type {
   WeekSchedule,
 } from '../types'
 import { FALLBACK_HOUSEHOLD } from './defaults'
-import { peoplePresent, scheduleWeek } from './scheduler'
+import { choresDueInWeek, isAway, peoplePresent, scheduleWeek } from './scheduler'
 import { addWeeks } from './weeks'
 
 const WEEK_KEYS = [
@@ -238,44 +238,109 @@ describe('scheduleWeek fairness integration', () => {
     expect(counts.reduce((sum, count) => sum + count, 0)).toBe(weeks)
   })
 
-  it('gives each person one free week and one cardboard/towel week every six weeks', () => {
-    const start = '2026-W30'
-    const freeCounts = new Map(
-      FALLBACK_HOUSEHOLD.people.map((person) => [person.id, 0]),
-    )
-    const lightCounts = new Map(
+  it('keeps the weighted load within 8 points over three years', () => {
+    const weights = { heavy: 3, medium: 2, light: 1 } as const
+    const load = new Map(
       FALLBACK_HOUSEHOLD.people.map((person) => [person.id, 0]),
     )
 
-    for (let index = 0; index < 6; index += 1) {
-      const weekKey = addWeeks(start, index)
-      const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
-      const assigned = new Set(
-        schedule.assignments.map((assignment) => assignment.personId),
+    for (let index = 0; index < 156; index += 1) {
+      const schedule = scheduleWeek(
+        FALLBACK_HOUSEHOLD,
+        EMPTY_AWAY,
+        addWeeks('2026-W30', index),
       )
-
-      for (const person of FALLBACK_HOUSEHOLD.people) {
-        if (!assigned.has(person.id)) {
-          freeCounts.set(person.id, (freeCounts.get(person.id) ?? 0) + 1)
-        }
-      }
-
       for (const assignment of schedule.assignments) {
-        if (
-          assignment.choreId === 'cardboard' ||
-          assignment.choreId === 'towels'
-        ) {
-          lightCounts.set(
-            assignment.personId,
-            (lightCounts.get(assignment.personId) ?? 0) + 1,
-          )
-        }
+        load.set(
+          assignment.personId,
+          (load.get(assignment.personId) ?? 0) + weights[assignment.effort],
+        )
       }
     }
 
-    for (const person of FALLBACK_HOUSEHOLD.people) {
-      expect(freeCounts.get(person.id)).toBe(1)
-      expect(lightCounts.get(person.id)).toBe(1)
+    const totals = [...load.values()]
+    expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(8)
+  })
+
+  it('shares 2027 chores evenly, including the biweekly ones', () => {
+    const weights = { heavy: 3, medium: 2, light: 1 } as const
+    const load = new Map(
+      FALLBACK_HOUSEHOLD.people.map((person) => [person.id, 0]),
+    )
+    const nonZone = ['kitchen', 'hallway', 'towels', 'cardboard', 'pag']
+    const counts = new Map(
+      nonZone.map((choreId) => [
+        choreId,
+        new Map(FALLBACK_HOUSEHOLD.people.map((person) => [person.id, 0])),
+      ]),
+    )
+
+    for (let week = 1; week <= 52; week += 1) {
+      const weekKey = `2027-W${String(week).padStart(2, '0')}`
+      const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
+      for (const assignment of schedule.assignments) {
+        load.set(
+          assignment.personId,
+          (load.get(assignment.personId) ?? 0) + weights[assignment.effort],
+        )
+        counts
+          .get(assignment.choreId)
+          ?.set(
+            assignment.personId,
+            (counts.get(assignment.choreId)?.get(assignment.personId) ?? 0) + 1,
+          )
+      }
+    }
+
+    const totals = [...load.values()]
+    expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(6)
+    for (const choreCounts of counts.values()) {
+      const values = [...choreCounts.values()]
+      expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(2)
+    }
+  })
+
+  it('gives every person exactly one free week in every six-week window', () => {
+    const weeks = 156
+    const assignedByWeek: Array<Set<string>> = []
+
+    for (let index = 0; index < weeks; index += 1) {
+      const schedule = scheduleWeek(
+        FALLBACK_HOUSEHOLD,
+        EMPTY_AWAY,
+        addWeeks('2026-W30', index),
+      )
+      assignedByWeek.push(
+        new Set(schedule.assignments.map((assignment) => assignment.personId)),
+      )
+    }
+
+    for (let start = 0; start + 6 <= weeks; start += 1) {
+      for (const person of FALLBACK_HOUSEHOLD.people) {
+        let free = 0
+        for (let offset = 0; offset < 6; offset += 1) {
+          if (!assignedByWeek[start + offset].has(person.id)) {
+            free += 1
+          }
+        }
+        expect(free).toBe(1)
+      }
+    }
+  })
+
+  it('does not repeat any chore for the same person on the next occurrence', () => {
+    const lastAssignee = new Map<string, string>()
+
+    for (let index = 0; index < 156; index += 1) {
+      const weekKey = addWeeks('2026-W30', index)
+      const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
+      for (const assignment of schedule.assignments) {
+        expect(
+          lastAssignee.get(assignment.choreId),
+          `${assignment.choreId} stuck on ${assignment.personId} at ${weekKey}`,
+        ).not.toBe(assignment.personId)
+        lastAssignee.set(assignment.choreId, assignment.personId)
+      }
     }
   })
 
@@ -349,6 +414,111 @@ describe('scheduleWeek fairness integration', () => {
       for (const assignment of upstairsBathroomAssignments) {
         expect(peopleById.get(assignment.personId)?.bathZone).toBe('up')
       }
+
+      const downstairsIds = new Set(
+        FALLBACK_HOUSEHOLD.chores
+          .filter((chore) => chore.zone === 'down')
+          .map((chore) => chore.id),
+      )
+      for (const assignment of schedule.assignments.filter((item) =>
+        downstairsIds.has(item.choreId),
+      )) {
+        expect(peopleById.get(assignment.personId)?.bathZone).toBe('down')
+      }
+    }
+  })
+
+  it('keeps holiday weeks fully assigned without repeating baths or kitchen', () => {
+    const away = {
+      'person-2': [
+        { id: 'p2', name: 'Trip', from: '2026-09-07', until: '2026-09-21' },
+      ],
+      'person-5': [
+        { id: 'p5', name: 'Trip', from: '2026-10-05', until: '2026-10-26' },
+      ],
+    }
+    const watched = new Set(['bath-up', 'bath-down', 'kitchen'])
+    const previous = new Map<string, string>()
+
+    for (let index = 0; index < 26; index += 1) {
+      const weekKey = addWeeks('2026-W30', index)
+      const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, away, weekKey)
+      const dueIds = choresDueInWeek(FALLBACK_HOUSEHOLD, weekKey).map(
+        (chore) => chore.id,
+      )
+
+      expect(schedule.assignments.map((item) => item.choreId).sort()).toEqual(
+        [...dueIds].sort(),
+      )
+
+      for (const assignment of schedule.assignments) {
+        expect(isAway(away, assignment.personId, weekKey)).toBe(false)
+        if (!watched.has(assignment.choreId)) {
+          continue
+        }
+        const eligible = peoplePresent(FALLBACK_HOUSEHOLD, away, weekKey).filter(
+          (person) => {
+            const chore = choreById.get(assignment.choreId)
+            return chore?.zone === undefined || person.bathZone === chore.zone
+          },
+        )
+        if (eligible.length > 1) {
+          expect(previous.get(assignment.choreId)).not.toBe(assignment.personId)
+        }
+        previous.set(assignment.choreId, assignment.personId)
+      }
+    }
+  })
+
+  it('continues the free-week rotation from locked history', () => {
+    const nextInZone: Record<string, string> = {
+      'person-1': 'person-3',
+      'person-3': 'person-5',
+      'person-5': 'person-1',
+      'person-2': 'person-4',
+      'person-4': 'person-6',
+      'person-6': 'person-2',
+    }
+    const overrides: WeekOverrideMap = {}
+    const freeInLocked = new Set<string>()
+
+    for (const weekKey of SEEDED_WEEK_KEYS) {
+      const auto = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
+      overrides[weekKey] = Object.fromEntries(
+        auto.assignments.map((item) => [item.choreId, nextInZone[item.personId]]),
+      )
+      const assigned = new Set(Object.values(overrides[weekKey]))
+      for (const person of FALLBACK_HOUSEHOLD.people) {
+        if (!assigned.has(person.id)) {
+          freeInLocked.add(person.id)
+        }
+      }
+    }
+
+    const locked = SEEDED_WEEK_KEYS.map((weekKey) =>
+      scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey, { overrides }),
+    )
+    for (const [index, weekKey] of SEEDED_WEEK_KEYS.entries()) {
+      expect(
+        Object.fromEntries(
+          locked[index].assignments.map((item) => [item.choreId, item.personId]),
+        ),
+      ).toEqual(overrides[weekKey])
+    }
+
+    const next = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, '2026-W32', {
+      overrides,
+    })
+    const free = FALLBACK_HOUSEHOLD.people.find(
+      (person) => !next.assignments.some((item) => item.personId === person.id),
+    )
+    expect(freeInLocked.has(free?.id ?? '')).toBe(false)
+
+    const previous = locked[1]
+    for (const choreId of ['kitchen', 'bath-up', 'bath-down']) {
+      expect(next.assignments.find((item) => item.choreId === choreId)?.personId).not.toBe(
+        previous.assignments.find((item) => item.choreId === choreId)?.personId,
+      )
     }
   })
 

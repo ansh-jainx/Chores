@@ -489,6 +489,51 @@ describe('scheduleWeek', () => {
     expect(schedules[1].assignments).toHaveLength(5);
     expect.soft(elapsedMs).toBeLessThan(3_000);
   });
+
+  it('schedules the same weeks whether walked forward, backward, or from fresh copies', () => {
+    const household = {
+      ...FALLBACK_HOUSEHOLD,
+      people: [...FALLBACK_HOUSEHOLD.people],
+      chores: [...FALLBACK_HOUSEHOLD.chores],
+    };
+    const away = {};
+    const forward = ['2026-W30', '2026-W31', '2026-W32'].map((weekKey) =>
+      scheduleWeek(household, away, weekKey),
+    );
+    const backward = ['2026-W32', '2026-W31', '2026-W30'].map((weekKey) =>
+      scheduleWeek(household, away, weekKey),
+    );
+    const fresh = ['2026-W30', '2026-W31', '2026-W32'].map((weekKey) =>
+      scheduleWeek(
+        { ...household, people: [...household.people], chores: [...household.chores] },
+        {},
+        weekKey,
+      ),
+    );
+
+    expect(backward.map((schedule) => schedule.weekKey)).toEqual([
+      '2026-W32',
+      '2026-W31',
+      '2026-W30',
+    ]);
+    expect(assignmentsByChore(forward[0].assignments)).toEqual(
+      assignmentsByChore(backward[2].assignments),
+    );
+    expect(assignmentsByChore(forward[2].assignments)).toEqual(
+      assignmentsByChore(backward[0].assignments),
+    );
+    expect(forward.map((schedule) => assignmentsByChore(schedule.assignments))).toEqual(
+      fresh.map((schedule) => assignmentsByChore(schedule.assignments)),
+    );
+  });
+
+  it('schedules 156 weeks quickly', () => {
+    const startedAt = performance.now();
+    for (let index = 0; index < 156; index += 1) {
+      scheduleWeek(FALLBACK_HOUSEHOLD, {}, addWeeks('2026-W30', index));
+    }
+    expect(performance.now() - startedAt).toBeLessThan(1_000);
+  });
 });
 
 function householdWithChores(choreIds: string[]): Household {
