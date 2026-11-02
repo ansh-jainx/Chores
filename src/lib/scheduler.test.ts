@@ -464,6 +464,17 @@ describe('scheduleWeek', () => {
     ]);
   });
 
+  it('keeps biweekly halves alternating across the 53-week ISO year boundary', () => {
+    const halves = ['2026-W52', '2026-W53', '2027-W01', '2027-W02', '2027-W03'].map(
+      (weekKey) =>
+        choresDueInWeek(FALLBACK_HOUSEHOLD, weekKey).some(({ id }) => id === 'hallway')
+          ? 'hallway'
+          : 'towels',
+    );
+
+    expect(halves).toEqual(['hallway', 'towels', 'hallway', 'towels', 'hallway']);
+  });
+
   it('schedules 24 consecutive weeks with two seed overrides quickly', () => {
     const startedAt = performance.now();
     const schedules = Array.from({ length: 24 }, (_, index) =>

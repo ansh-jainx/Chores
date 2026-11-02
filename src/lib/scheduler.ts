@@ -16,7 +16,6 @@ import {
   formatUtcDate,
   overlapDaysInWeek,
   parseIsoDate,
-  parseWeekKey,
   weekEndExclusiveDate,
   weekOrdinal,
   weekStartDate,
@@ -145,7 +144,9 @@ function dueChoreEntries(
   household: Household,
   weekKey: string,
 ): Array<{ chore: Chore; choreIndex: number }> {
-  const { week: weekNumber } = parseWeekKey(weekKey)
+  // Continuous week count, not the ISO week number: ISO numbering restarts
+  // after W52/W53, which would run the same biweekly half twice in a row.
+  const weekParity = weekOrdinal(weekKey) % 2
   const biweeklyPhases = new Map<string, number>()
   household.chores
     .filter((chore) => chore.cadence === 'biweekly')
@@ -165,7 +166,7 @@ function dueChoreEntries(
 
       const phase = biweeklyPhases.get(chore.id) ?? 0
       const targetParity = (phase + household.biweeklyParity) % 2
-      return weekNumber % 2 === targetParity
+      return weekParity === targetParity
     })
     .sort((left, right) => {
       const stackDelta =

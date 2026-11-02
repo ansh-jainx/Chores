@@ -10,7 +10,7 @@ Default household data lives in `public/household.json`. Edit that file to chang
 
 - `people`: each flatmate's `id`, display `name`, and `bathZone` (`"up"` or `"down"`).
 - `chores`: each chore's `id`, `name`, `cadence` (`"weekly"` or `"biweekly"`), optional `zone`, and optional `effort` (`"heavy"`, `"medium"`, `"light"`).
-- `biweeklyParity`: whether biweekly chores run on even (`0`) or odd (`1`) ISO week numbers.
+- `biweeklyParity`: which half of the biweekly chores (hallway + cardboard, or towels + P/A/G) runs on a given week. The halves alternate every week continuously, including across a 53-week year, so `1` just swaps which half goes first.
 
 The Setup tab can also edit people, chores, and biweekly parity in the browser. With cloud sync enabled, those edits (and holidays) sync to every device automatically. Without cloud sync, edits stay in that browser's local storage only.
 
@@ -69,4 +69,4 @@ The app is configured for the `/Chores/` GitHub Pages base path. To enable deplo
 3. Under "Build and deployment", set Source to "GitHub Actions".
 4. Push to `main` or run the "Deploy to GitHub Pages" workflow manually.
 
-The Pages workflow installs dependencies with `npm ci`, runs `npm run build`, uploads `dist/`, and deploys it to GitHub Pages. If the repository name changes, update the live-site URL here and the `/Chores/` base path in `vite.config.ts`.
+The Pages workflow installs dependencies with `npm ci`, runs `npm run lint` and `npm test`, runs `npm run build`, uploads `dist/`, and deploys it to GitHub Pages. A failing lint or test stops the deploy. If the repository name changes, update the live-site URL here and the `/Chores/` base path in `vite.config.ts`.

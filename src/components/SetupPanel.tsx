@@ -438,7 +438,7 @@ function SetupPanel({
           </label>
           <p className="field-help">
             Biweekly chores are split across alternating weeks. This offset flips
-            which half of the biweekly set runs on even vs odd weeks.
+            which half of the biweekly set runs this week.
           </p>
         </div>
       </section>
