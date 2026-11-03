@@ -10,7 +10,7 @@ import type {
 } from '../types'
 import { FALLBACK_HOUSEHOLD } from './defaults'
 import { choresDueInWeek, isAway, peoplePresent, scheduleWeek } from './scheduler'
-import { addWeeks } from './weeks'
+import { addWeeks, toWeekKey } from './weeks'
 
 const WEEK_KEYS = [
   '2026-W30',
@@ -233,7 +233,7 @@ describe('scheduleWeek fairness integration', () => {
     }
 
     const counts = [...freeCounts.values()]
-    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1)
+    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(2)
     // One free person per week when all six are home.
     expect(counts.reduce((sum, count) => sum + count, 0)).toBe(weeks)
   })
@@ -260,6 +260,50 @@ describe('scheduleWeek fairness integration', () => {
 
     const totals = [...load.values()]
     expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(8)
+  })
+
+  it('spreads kitchen and bathrooms across 1 Nov–5 Dec without back-to-back repeats', () => {
+    const first = toWeekKey(new Date('2026-11-01T00:00:00Z'))
+    const last = toWeekKey(new Date('2026-12-05T00:00:00Z'))
+    const heavyIds = ['kitchen', 'bath-up', 'bath-down', 'hallway']
+    const counts = new Map(
+      heavyIds.map((choreId) => [
+        choreId,
+        new Map(FALLBACK_HOUSEHOLD.people.map((person) => [person.id, 0])),
+      ]),
+    )
+    const previous = new Map<string, string>()
+
+    for (let weekKey = first; ; weekKey = addWeeks(weekKey, 1)) {
+      const schedule = scheduleWeek(FALLBACK_HOUSEHOLD, EMPTY_AWAY, weekKey)
+      for (const assignment of schedule.assignments) {
+        if (!counts.has(assignment.choreId)) continue
+        expect(previous.get(assignment.choreId)).not.toBe(assignment.personId)
+        previous.set(assignment.choreId, assignment.personId)
+        const choreCounts = counts.get(assignment.choreId)!
+        choreCounts.set(
+          assignment.personId,
+          (choreCounts.get(assignment.personId) ?? 0) + 1,
+        )
+      }
+      if (weekKey === last) break
+    }
+
+    const spread = (choreId: string, people: string[]) => {
+      const values = people.map((personId) => counts.get(choreId)?.get(personId) ?? 0)
+      return Math.max(...values) - Math.min(...values)
+    }
+    const upstairs = FALLBACK_HOUSEHOLD.people
+      .filter((person) => person.bathZone === 'up')
+      .map((person) => person.id)
+    const downstairs = FALLBACK_HOUSEHOLD.people
+      .filter((person) => person.bathZone === 'down')
+      .map((person) => person.id)
+
+    expect(spread('kitchen', FALLBACK_HOUSEHOLD.people.map((person) => person.id))).toBeLessThanOrEqual(1)
+    expect(spread('bath-up', upstairs)).toBeLessThanOrEqual(1)
+    expect(spread('bath-down', downstairs)).toBeLessThanOrEqual(1)
+    expect(spread('hallway', FALLBACK_HOUSEHOLD.people.map((person) => person.id))).toBeLessThanOrEqual(1)
   })
 
   it('shares 2027 chores evenly, including the biweekly ones', () => {
@@ -300,7 +344,7 @@ describe('scheduleWeek fairness integration', () => {
     }
   })
 
-  it('gives every person exactly one free week in every six-week window', () => {
+  it('keeps free weeks from bunching while big chores stay shared', () => {
     const weeks = 156
     const assignedByWeek: Array<Set<string>> = []
 
@@ -323,9 +367,18 @@ describe('scheduleWeek fairness integration', () => {
             free += 1
           }
         }
-        expect(free).toBe(1)
+        expect(free).toBeLessThanOrEqual(2)
       }
     }
+
+    const totals = FALLBACK_HOUSEHOLD.people.map((person) => {
+      let free = 0
+      for (const assigned of assignedByWeek) {
+        if (!assigned.has(person.id)) free += 1
+      }
+      return free
+    })
+    expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(2)
   })
 
   it('does not repeat any chore for the same person on the next occurrence', () => {

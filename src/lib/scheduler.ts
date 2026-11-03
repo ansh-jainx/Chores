@@ -19,6 +19,8 @@ type ScheduleOptions = {
 type State = {
   lastFree: Map<string, number>
   lastDid: Map<string, Map<string, number>>
+  /** How many times each person has already done each chore. */
+  times: Map<string, Map<string, number>>
   prevAssignee: Map<string, string>
 }
 
@@ -35,6 +37,8 @@ type CostFn = (person: Person, chore: Chore) => number
 const ROTA_EPOCH = '2026-W30'
 const ZONE_PENALTY = 1e6
 const REPEAT_PENALTY = 1e4
+/** Dominates recency so a heavy chore is not repeated until everyone eligible has had a turn. */
+const COUNT_PENALTY = 1_000
 const EXHAUSTIVE_LIMIT = 7
 const NO_OVERRIDES: WeekOverrideMap = {}
 
@@ -198,7 +202,12 @@ function anchorFor(overrides: WeekOverrideMap | undefined): string {
 }
 
 function freshState(): State {
-  return { lastFree: new Map(), lastDid: new Map(), prevAssignee: new Map() }
+  return {
+    lastFree: new Map(),
+    lastDid: new Map(),
+    times: new Map(),
+    prevAssignee: new Map(),
+  }
 }
 
 function simulateWeek(
@@ -231,7 +240,7 @@ function simulateWeek(
   const assignments =
     working.length >= due.length
       ? spreadAssignments(working, due, costOf, household, present)
-      : stackAssignments(present, due, costOf, ranks, household)
+      : stackAssignments(present, due, costOf, ranks, household, state)
 
   const schedule = { weekKey, assignments: sortAssignments(household, assignments) }
   record(state, present, schedule.assignments, ordinal)
@@ -283,7 +292,11 @@ function selectFree(
   if (freeCount === 0) return free
 
   const seat = new Map(household.people.map((person, index) => [person.id, index]))
+  const protectedIds = protectedFromSittingOut(present, due, state)
   const ordered = [...present].sort((left, right) => {
+    const leftHeld = protectedIds.has(left.id) ? 1 : 0
+    const rightHeld = protectedIds.has(right.id) ? 1 : 0
+    if (leftHeld !== rightHeld) return leftHeld - rightHeld
     const leftFree = state.lastFree.get(left.id) ?? Number.NEGATIVE_INFINITY
     const rightFree = state.lastFree.get(right.id) ?? Number.NEGATIVE_INFINITY
     if (leftFree !== rightFree) return leftFree < rightFree ? -1 : 1
@@ -306,6 +319,31 @@ function selectFree(
   return free
 }
 
+/** Person who is the only one at the lowest count for a due heavy chore. */
+function protectedFromSittingOut(
+  present: Person[],
+  due: Chore[],
+  state: State,
+): Set<string> {
+  const held = new Set<string>()
+  for (const chore of due) {
+    if (choreEffort(chore) !== 'heavy' || !chore.zone) continue
+    const eligible = present.filter(
+      (person) => !chore.zone || person.bathZone === chore.zone,
+    )
+    if (eligible.length < 2) continue
+    let lowest = Number.POSITIVE_INFINITY
+    for (const person of eligible) {
+      lowest = Math.min(lowest, timesDone(state, person.id, chore.id))
+    }
+    const atLowest = eligible.filter(
+      (person) => timesDone(state, person.id, chore.id) === lowest,
+    )
+    if (atLowest.length === 1) held.add(atLowest[0].id)
+  }
+  return held
+}
+
 function spreadAssignments(
   working: Person[],
   due: Chore[],
@@ -324,6 +362,7 @@ function stackAssignments(
   costOf: CostFn,
   ranks: RankTable,
   household: Household,
+  state: State,
 ): Assignment[] {
   const choreOrder = new Map(household.chores.map((chore, index) => [chore.id, index]))
   const seat = new Map(household.people.map((person, index) => [person.id, index]))
@@ -347,7 +386,7 @@ function stackAssignments(
   }
 
   for (const chore of sorted.slice(present.length)) {
-    const picked = pickExtra(chore, present, effort, heavies, ranks, seat)
+    const picked = pickExtra(chore, present, effort, heavies, ranks, seat, state)
     noteLoad(effort, heavies, picked.person.id, chore)
     assignments.push(toAssignment(chore, picked.person, joinWarnings(picked.warnings)))
   }
@@ -361,6 +400,7 @@ function pickExtra(
   heavies: Map<string, number>,
   ranks: RankTable,
   seat: Map<string, number>,
+  state: State,
 ): { person: Person; warnings: string[] } {
   const warnings: string[] = []
   const zone = chore.zone
@@ -378,7 +418,7 @@ function pickExtra(
   let best = candidates[0]
   for (let index = 1; index < candidates.length; index += 1) {
     const person = candidates[index]
-    if (stacksBefore(person, best, chore, effort, ranks, seat)) best = person
+    if (stacksBefore(person, best, chore, effort, ranks, seat, state)) best = person
   }
   return { person: best, warnings }
 }
@@ -390,9 +430,13 @@ function stacksBefore(
   effort: Map<string, number>,
   ranks: RankTable,
   seat: Map<string, number>,
+  state: State,
 ): boolean {
   const effortDelta = (effort.get(person.id) ?? 0) - (effort.get(best.id) ?? 0)
   if (effortDelta !== 0) return effortDelta < 0
+  const timesDelta =
+    timesDone(state, person.id, chore.id) - timesDone(state, best.id, chore.id)
+  if (timesDelta !== 0) return timesDelta < 0
   const rankDelta =
     (ranks.get(person.id)?.get(chore.id) ?? 0) - (ranks.get(best.id)?.get(chore.id) ?? 0)
   if (rankDelta !== 0) return rankDelta < 0
@@ -476,7 +520,9 @@ function greedyAssign(
 function makeCost(working: Person[], state: State, ranks: RankTable): CostFn {
   const covered = new Set(working.map((person) => person.bathZone))
   return (person, chore) => {
-    let total = (ranks.get(person.id)?.get(chore.id) ?? 0) * 10
+    let total =
+      timesDone(state, person.id, chore.id) * COUNT_PENALTY +
+      (ranks.get(person.id)?.get(chore.id) ?? 0) * 10
     if (state.prevAssignee.get(chore.id) === person.id) total += REPEAT_PENALTY
     if (chore.zone && person.bathZone !== chore.zone && covered.has(chore.zone)) {
       total += ZONE_PENALTY
@@ -505,6 +551,10 @@ function lastDid(state: State, personId: string, choreId: string): number {
   return state.lastDid.get(personId)?.get(choreId) ?? Number.NEGATIVE_INFINITY
 }
 
+function timesDone(state: State, personId: string, choreId: string): number {
+  return state.times.get(personId)?.get(choreId) ?? 0
+}
+
 function record(
   state: State,
   present: Person[],
@@ -520,6 +570,12 @@ function record(
       state.lastDid.set(assignment.personId, done)
     }
     done.set(assignment.choreId, ordinal)
+    let counts = state.times.get(assignment.personId)
+    if (!counts) {
+      counts = new Map()
+      state.times.set(assignment.personId, counts)
+    }
+    counts.set(assignment.choreId, (counts.get(assignment.choreId) ?? 0) + 1)
     state.prevAssignee.set(assignment.choreId, assignment.personId)
   }
   for (const person of present) {
