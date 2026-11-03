@@ -490,49 +490,123 @@ describe('scheduleWeek', () => {
     expect.soft(elapsedMs).toBeLessThan(3_000);
   });
 
-  it('schedules the same weeks whether walked forward, backward, or from fresh copies', () => {
-    const household = {
-      ...FALLBACK_HOUSEHOLD,
-      people: [...FALLBACK_HOUSEHOLD.people],
-      chores: [...FALLBACK_HOUSEHOLD.chores],
-    };
-    const away = {};
-    const forward = ['2026-W30', '2026-W31', '2026-W32'].map((weekKey) =>
-      scheduleWeek(household, away, weekKey),
-    );
-    const backward = ['2026-W32', '2026-W31', '2026-W30'].map((weekKey) =>
-      scheduleWeek(household, away, weekKey),
-    );
-    const fresh = ['2026-W30', '2026-W31', '2026-W32'].map((weekKey) =>
-      scheduleWeek(
-        { ...household, people: [...household.people], chores: [...household.chores] },
-        {},
-        weekKey,
-      ),
-    );
+  it('lets locked weeks steer the next free person and kitchen assignee', () => {
+    const freeDuringLocks = new Set<string>();
+    for (const weekKey of ['2026-W30', '2026-W31'] as const) {
+      const assigned = new Set(
+        scheduleWeek(FALLBACK_HOUSEHOLD, {}, weekKey, {
+          overrides: seededOverrides,
+        }).assignments.map((assignment) => assignment.personId),
+      );
+      for (const person of FALLBACK_HOUSEHOLD.people) {
+        if (!assigned.has(person.id)) freeDuringLocks.add(person.id);
+      }
+    }
 
-    expect(backward.map((schedule) => schedule.weekKey)).toEqual([
-      '2026-W32',
-      '2026-W31',
-      '2026-W30',
-    ]);
-    expect(assignmentsByChore(forward[0].assignments)).toEqual(
-      assignmentsByChore(backward[2].assignments),
-    );
-    expect(assignmentsByChore(forward[2].assignments)).toEqual(
-      assignmentsByChore(backward[0].assignments),
-    );
-    expect(forward.map((schedule) => assignmentsByChore(schedule.assignments))).toEqual(
-      fresh.map((schedule) => assignmentsByChore(schedule.assignments)),
+    const next = scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W32', {
+      overrides: seededOverrides,
+    });
+    const assignedNext = new Set(next.assignments.map((assignment) => assignment.personId));
+    const freeNext = FALLBACK_HOUSEHOLD.people.filter((person) => !assignedNext.has(person.id));
+    const previousKitchen = scheduleWeek(FALLBACK_HOUSEHOLD, {}, '2026-W31', {
+      overrides: seededOverrides,
+    }).assignments.find((assignment) => assignment.choreId === 'kitchen');
+
+    expect(freeNext).toHaveLength(1);
+    expect(freeDuringLocks.has(freeNext[0].id)).toBe(false);
+    expect(next.assignments.find((assignment) => assignment.choreId === 'kitchen')?.personId).not.toBe(
+      previousKitchen?.personId,
     );
   });
 
-  it('schedules 156 weeks quickly', () => {
+  it('returns the same schedules forward, reverse, and from fresh copies', () => {
+    const weekKeys = Array.from({ length: 10 }, (_, index) => addWeeks('2026-W28', index));
+    const away: AwayMap = {
+      'person-4': [
+        { id: 'trip', name: 'Trip', from: '2026-08-10', until: '2026-08-17' },
+      ],
+    };
+    const overrides: WeekOverrideMap = {
+      '2026-W28': {
+        'bath-up': 'person-1',
+        'bath-down': 'person-2',
+        kitchen: 'person-6',
+        hallway: 'person-3',
+        cardboard: 'person-5',
+      },
+    };
+
+    const forward = weekKeys.map((weekKey) =>
+      scheduleWeek(FALLBACK_HOUSEHOLD, away, weekKey, { overrides }),
+    );
+    const reverseHousehold = structuredClone(FALLBACK_HOUSEHOLD);
+    const reverseAway = structuredClone(away);
+    const reverseOverrides = structuredClone(overrides);
+    const reverse = [...weekKeys].reverse().map((weekKey) =>
+      scheduleWeek(reverseHousehold, reverseAway, weekKey, {
+        overrides: reverseOverrides,
+      }),
+    );
+    const uncached = weekKeys.map((weekKey) =>
+      scheduleWeek(structuredClone(FALLBACK_HOUSEHOLD), structuredClone(away), weekKey, {
+        overrides: structuredClone(overrides),
+      }),
+    );
+    const jumpHousehold = structuredClone(FALLBACK_HOUSEHOLD);
+    const jumpAway = structuredClone(away);
+    const jumpOverrides = structuredClone(overrides);
+    const lastKey = weekKeys[weekKeys.length - 1];
+    const jumped = scheduleWeek(jumpHousehold, jumpAway, lastKey, {
+      overrides: jumpOverrides,
+    });
+    const afterJump = weekKeys.map((weekKey) =>
+      scheduleWeek(jumpHousehold, jumpAway, weekKey, { overrides: jumpOverrides }),
+    );
+
+    expect([...reverse].reverse()).toEqual(forward);
+    expect(uncached).toEqual(forward);
+    expect(afterJump).toEqual(forward);
+    expect(jumped).toEqual(forward[forward.length - 1]);
+    expect(
+      scheduleWeek(FALLBACK_HOUSEHOLD, away, '2026-W10', { overrides }),
+    ).toEqual(
+      scheduleWeek(structuredClone(FALLBACK_HOUSEHOLD), structuredClone(away), '2026-W10', {
+        overrides: structuredClone(overrides),
+      }),
+    );
+  });
+
+  it('warns when someone must take a second heavy chore', () => {
+    const household: Household = {
+      people: basePeople,
+      biweeklyParity: 0,
+      chores: ['a', 'b', 'c', 'd'].map((id) => ({
+        id,
+        name: id.toUpperCase(),
+        cadence: 'weekly' as const,
+        effort: 'heavy' as const,
+      })),
+    };
+
+    const assignments = scheduleWeek(household, {}, '2026-W30').assignments;
+    const warned = assignments.filter((assignment) =>
+      assignment.warning?.includes('Heavy spill: someone already has a big chore this week'),
+    );
+
+    expect(assignments).toHaveLength(4);
+    expect(Math.max(...Object.values(countAssignmentsByPerson(assignments)))).toBe(2);
+    expect(warned).toHaveLength(1);
+  });
+
+  it('schedules 156 weeks in under 200 ms', () => {
+    const household = structuredClone(FALLBACK_HOUSEHOLD);
+    const away: AwayMap = {};
     const startedAt = performance.now();
-    for (let index = 0; index < 156; index += 1) {
-      scheduleWeek(FALLBACK_HOUSEHOLD, {}, addWeeks('2026-W30', index));
-    }
-    expect(performance.now() - startedAt).toBeLessThan(1_000);
+    const schedule = scheduleWeek(household, away, addWeeks('2026-W30', 155));
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(schedule.assignments).toHaveLength(5);
+    expect(elapsedMs).toBeLessThan(200);
   });
 });
 
